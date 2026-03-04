@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { ShoppingBag, Menu, X, User, Search, ChevronRight, Instagram, Facebook, Youtube, Plus, Trash2, LayoutDashboard, Package, FileText } from 'lucide-react';
+import { ShoppingBag, Menu, X, User, Search, ChevronRight, Instagram, Facebook, Youtube, Plus, Trash2, LayoutDashboard, Package, FileText, Edit } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PRODUCTS, POSTS } from './data';
 import { Product, BlogPost, CartItem } from './types';
+import { SupportChat } from './components/SupportChat';
 
 import { generateHealthTips } from './services/geminiService';
 
@@ -77,10 +78,11 @@ const Navbar = ({ cartCount, onCartClick, onNavigate }: { cartCount: number, onC
   );
 };
 
-const ProductCard: React.FC<{ product: Product, onAddToCart: (p: Product) => void }> = ({ product, onAddToCart }) => (
+const ProductCard: React.FC<{ product: Product, onAddToCart: (p: Product) => void, onClick: (p: Product) => void }> = ({ product, onAddToCart, onClick }) => (
   <motion.div 
     whileHover={{ y: -5 }}
-    className="group bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all"
+    onClick={() => onClick(product)}
+    className={`group bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all cursor-pointer ${product.stock <= 0 ? 'opacity-75' : ''}`}
   >
     <div className="relative aspect-square overflow-hidden bg-gray-50">
       <img 
@@ -89,10 +91,15 @@ const ProductCard: React.FC<{ product: Product, onAddToCart: (p: Product) => voi
         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
         referrerPolicy="no-referrer"
       />
-      <div className="absolute top-3 left-3">
+      <div className="absolute top-3 left-3 flex flex-col gap-2">
         <span className="bg-white/90 backdrop-blur-sm px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider text-brand-black">
           {product.category}
         </span>
+        {product.stock <= 0 && (
+          <span className="bg-red-500 text-white px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider">
+            Esgotado
+          </span>
+        )}
       </div>
     </div>
     <div className="p-4">
@@ -108,8 +115,12 @@ const ProductCard: React.FC<{ product: Product, onAddToCart: (p: Product) => voi
       <div className="flex items-center justify-between">
         <span className="text-lg font-bold text-brand-orange">R$ {product.price.toFixed(2)}</span>
         <button 
-          onClick={() => onAddToCart(product)}
-          className="p-2 bg-brand-black text-white rounded-full hover:bg-brand-orange transition-colors"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (product.stock > 0) onAddToCart(product);
+          }}
+          disabled={product.stock <= 0}
+          className={`p-2 rounded-full transition-colors ${product.stock > 0 ? 'bg-brand-black text-white hover:bg-brand-orange' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
         >
           <ShoppingBag size={18} />
         </button>
@@ -207,7 +218,7 @@ const Footer = () => (
 
 // --- Pages ---
 
-const HomePage = ({ onNavigate, onAddToCart, products, posts }: { onNavigate: (p: string) => void, onAddToCart: (p: Product) => void, products: Product[], posts: BlogPost[] }) => (
+const HomePage = ({ onNavigate, onAddToCart, products, posts, onProductClick }: { onNavigate: (p: string) => void, onAddToCart: (p: Product) => void, products: Product[], posts: BlogPost[], onProductClick: (p: Product) => void }) => (
   <div className="space-y-24 pb-24">
     {/* Hero Section */}
     <section className="relative h-screen flex items-center overflow-hidden bg-brand-black">
@@ -262,7 +273,7 @@ const HomePage = ({ onNavigate, onAddToCart, products, posts }: { onNavigate: (p
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
         {products.slice(0, 4).map(product => (
-          <ProductCard key={product.id} product={product} onAddToCart={onAddToCart} />
+          <ProductCard key={product.id} product={product} onAddToCart={onAddToCart} onClick={onProductClick} />
         ))}
       </div>
     </section>
@@ -284,7 +295,7 @@ const HomePage = ({ onNavigate, onAddToCart, products, posts }: { onNavigate: (p
   </div>
 );
 
-const StorePage = ({ onAddToCart, products }: { onAddToCart: (p: Product) => void, products: Product[] }) => {
+const StorePage = ({ onAddToCart, products, onProductClick }: { onAddToCart: (p: Product) => void, products: Product[], onProductClick: (p: Product) => void }) => {
   const [filter, setFilter] = useState('todos');
   
   const filteredProducts = filter === 'todos' 
@@ -313,7 +324,7 @@ const StorePage = ({ onAddToCart, products }: { onAddToCart: (p: Product) => voi
       
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
         {filteredProducts.map(product => (
-          <ProductCard key={product.id} product={product} onAddToCart={onAddToCart} />
+          <ProductCard key={product.id} product={product} onAddToCart={onAddToCart} onClick={onProductClick} />
         ))}
       </div>
     </div>
@@ -458,13 +469,130 @@ const TipsPage = () => {
   );
 };
 
+const ProductDetailsPage: React.FC<{ product: Product, onAddToCart: (p: Product) => void, onBack: () => void }> = ({ product, onAddToCart, onBack }) => {
+  const [activeImage, setActiveImage] = useState(product.image);
+  const allImages = [product.image, ...(product.images || [])];
+
+  return (
+    <div className="pt-32 pb-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <button 
+        onClick={onBack}
+        className="flex items-center gap-2 text-gray-500 hover:text-brand-orange transition-colors mb-8 font-bold uppercase text-xs tracking-widest"
+      >
+        <ChevronRight className="rotate-180" size={16} /> Voltar para a Loja
+      </button>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+        <div className="space-y-4">
+          <motion.div 
+            key={activeImage}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="aspect-square rounded-3xl overflow-hidden bg-gray-50 border border-gray-100"
+          >
+            <img 
+              src={activeImage} 
+              alt={product.name} 
+              className="w-full h-full object-cover"
+              referrerPolicy="no-referrer"
+            />
+          </motion.div>
+          
+          {allImages.length > 1 && (
+            <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+              {allImages.map((img, idx) => (
+                <button 
+                  key={idx}
+                  onClick={() => setActiveImage(img)}
+                  className={`flex-shrink-0 w-20 h-20 rounded-xl overflow-hidden border-2 transition-all ${activeImage === img ? 'border-brand-orange' : 'border-transparent opacity-60 hover:opacity-100'}`}
+                >
+                  <img src={img} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <motion.div 
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="flex flex-col justify-center"
+        >
+          <span className="text-brand-orange font-bold uppercase text-xs tracking-widest mb-4">
+            {product.category}
+          </span>
+          <h1 className="text-5xl font-black mb-6 uppercase leading-tight">
+            {product.name}
+          </h1>
+          
+          <div className="flex items-center gap-4 mb-8">
+            <div className="flex text-yellow-400 text-xl">
+              {[...Array(5)].map((_, i) => (
+                <span key={i} className={i < Math.floor(product.rating) ? 'fill-current' : 'text-gray-300'}>★</span>
+              ))}
+            </div>
+            <span className="text-gray-400 font-medium">({product.reviews} avaliações de clientes)</span>
+          </div>
+
+          <p className="text-gray-600 text-lg mb-10 leading-relaxed">
+            {product.description || "Este produto premium da Halex Shop foi desenvolvido com os mais altos padrões de qualidade para garantir que você alcance seus objetivos físicos com eficiência e segurança."}
+          </p>
+
+          <div className="flex items-center gap-8 mb-10">
+            <span className="text-4xl font-black text-brand-orange">
+              R$ {product.price.toFixed(2)}
+            </span>
+            <div className="h-8 w-px bg-gray-200" />
+            {product.stock > 0 ? (
+              <span className="text-green-500 font-bold flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" /> 
+                {product.stock} em estoque
+              </span>
+            ) : (
+              <span className="text-red-500 font-bold flex items-center gap-2">
+                <div className="w-2 h-2 bg-red-500 rounded-full" /> Esgotado
+              </span>
+            )}
+          </div>
+
+          <div className="flex gap-4">
+            <button 
+              onClick={() => onAddToCart(product)}
+              disabled={product.stock <= 0}
+              className="flex-grow btn-primary py-5 text-xl flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ShoppingBag size={24} /> {product.stock > 0 ? 'Adicionar ao Carrinho' : 'Indisponível'}
+            </button>
+          </div>
+
+          <div className="mt-12 pt-12 border-t border-gray-100 grid grid-cols-3 gap-8">
+            <div className="text-center">
+              <div className="text-brand-orange font-black text-xl mb-1">100%</div>
+              <div className="text-gray-400 text-[10px] uppercase font-bold tracking-widest">Puro</div>
+            </div>
+            <div className="text-center">
+              <div className="text-brand-orange font-black text-xl mb-1">Elite</div>
+              <div className="text-gray-400 text-[10px] uppercase font-bold tracking-widest">Qualidade</div>
+            </div>
+            <div className="text-center">
+              <div className="text-brand-orange font-black text-xl mb-1">Fast</div>
+              <div className="text-gray-400 text-[10px] uppercase font-bold tracking-widest">Entrega</div>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    </div>
+  );
+};
+
 const AdminPage = ({ products, posts, onRefresh }: { products: Product[], posts: BlogPost[], onRefresh: () => void }) => {
   const [activeTab, setActiveTab] = useState<'products' | 'posts'>('products');
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   // Product Form State
   const [newProduct, setNewProduct] = useState<Partial<Product>>({
-    name: '', price: 0, description: '', category: 'suplementos', image: 'https://picsum.photos/seed/new/600/600', rating: 5, reviews: 0
+    name: '', price: 0, description: '', category: 'suplementos', image: 'https://picsum.photos/seed/new/600/600', images: [], stock: 0, rating: 5, reviews: 0
   });
 
   // Post Form State
@@ -474,26 +602,61 @@ const AdminPage = ({ products, posts, onRefresh }: { products: Product[], posts:
 
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    const product = { ...newProduct, id: Date.now().toString() };
-    await fetch('/api/products', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(product)
-    });
-    setShowForm(false);
+    if (editingId) {
+      await fetch(`/api/products/${editingId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newProduct)
+      });
+    } else {
+      const product = { ...newProduct, id: Date.now().toString() };
+      await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(product)
+      });
+    }
+    resetForm();
     onRefresh();
   };
 
   const handleAddPost = async (e: React.FormEvent) => {
     e.preventDefault();
-    const post = { ...newPost, id: Date.now().toString() };
-    await fetch('/api/posts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(post)
-    });
-    setShowForm(false);
+    if (editingId) {
+      await fetch(`/api/posts/${editingId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newPost)
+      });
+    } else {
+      const post = { ...newPost, id: Date.now().toString() };
+      await fetch('/api/posts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(post)
+      });
+    }
+    resetForm();
     onRefresh();
+  };
+
+  const resetForm = () => {
+    setShowForm(false);
+    setEditingId(null);
+    setNewProduct({ name: '', price: 0, description: '', category: 'suplementos', image: 'https://picsum.photos/seed/new/600/600', images: [], stock: 0, rating: 5, reviews: 0 });
+    setNewPost({ title: '', excerpt: '', content: '', category: 'alimentacao', author: 'Equipe Halex', date: new Date().toISOString().split('T')[0], image: 'https://picsum.photos/seed/post/800/400', readTime: '5 min' });
+  };
+
+  const handleEditProduct = (product: Product) => {
+    setNewProduct(product);
+    setEditingId(product.id);
+    setShowForm(true);
+  };
+
+  const handleEditPost = (post: BlogPost) => {
+    setNewPost(post);
+    setEditingId(post.id);
+    setShowForm(true);
   };
 
   const handleDeleteProduct = async (id: string) => {
@@ -520,7 +683,7 @@ const AdminPage = ({ products, posts, onRefresh }: { products: Product[], posts:
           <p className="text-gray-500">Gerencie seus produtos e conteúdo do blog.</p>
         </div>
         <button 
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => { if(showForm) resetForm(); else setShowForm(true); }}
           className="btn-primary flex items-center gap-2"
         >
           <Plus size={20} /> {showForm ? 'Cancelar' : activeTab === 'products' ? 'Novo Produto' : 'Novo Post'}
@@ -529,13 +692,13 @@ const AdminPage = ({ products, posts, onRefresh }: { products: Product[], posts:
 
       <div className="flex gap-4 mb-8 border-b border-gray-100 pb-4">
         <button 
-          onClick={() => { setActiveTab('products'); setShowForm(false); }}
+          onClick={() => { setActiveTab('products'); resetForm(); }}
           className={`flex items-center gap-2 px-6 py-2 rounded-full font-bold uppercase text-xs tracking-widest transition-all ${activeTab === 'products' ? 'bg-brand-black text-white' : 'text-gray-400 hover:text-brand-orange'}`}
         >
           <Package size={16} /> Produtos
         </button>
         <button 
-          onClick={() => { setActiveTab('posts'); setShowForm(false); }}
+          onClick={() => { setActiveTab('posts'); resetForm(); }}
           className={`flex items-center gap-2 px-6 py-2 rounded-full font-bold uppercase text-xs tracking-widest transition-all ${activeTab === 'posts' ? 'bg-brand-black text-white' : 'text-gray-400 hover:text-brand-orange'}`}
         >
           <FileText size={16} /> Blog
@@ -551,7 +714,7 @@ const AdminPage = ({ products, posts, onRefresh }: { products: Product[], posts:
             className="bg-white p-8 rounded-3xl border border-gray-100 shadow-xl max-w-2xl mx-auto"
           >
             <h2 className="text-2xl font-black mb-6 uppercase">
-              {activeTab === 'products' ? 'Adicionar Produto' : 'Adicionar Post'}
+              {editingId ? 'Editar' : 'Adicionar'} {activeTab === 'products' ? 'Produto' : 'Post'}
             </h2>
             
             <form onSubmit={activeTab === 'products' ? handleAddProduct : handleAddPost} className="space-y-4">
@@ -583,6 +746,29 @@ const AdminPage = ({ products, posts, onRefresh }: { products: Product[], posts:
                       <option value="vestuario">Vestuário</option>
                     </select>
                   </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <input 
+                      placeholder="Imagem Principal (URL)" 
+                      className="w-full p-4 bg-gray-50 rounded-xl border-none outline-none"
+                      value={newProduct.image}
+                      onChange={e => setNewProduct({...newProduct, image: e.target.value})}
+                      required
+                    />
+                    <input 
+                      placeholder="Estoque" 
+                      type="number"
+                      className="w-full p-4 bg-gray-50 rounded-xl border-none outline-none"
+                      value={newProduct.stock}
+                      onChange={e => setNewProduct({...newProduct, stock: Number(e.target.value)})}
+                      required
+                    />
+                  </div>
+                  <textarea 
+                    placeholder="Imagens Adicionais (uma URL por linha)" 
+                    className="w-full p-4 bg-gray-50 rounded-xl border-none outline-none h-24"
+                    value={newProduct.images?.join('\n')}
+                    onChange={e => setNewProduct({...newProduct, images: e.target.value.split('\n').filter(url => url.trim() !== '')})}
+                  />
                   <textarea 
                     placeholder="Descrição" 
                     className="w-full p-4 bg-gray-50 rounded-xl border-none outline-none h-32"
@@ -639,15 +825,25 @@ const AdminPage = ({ products, posts, onRefresh }: { products: Product[], posts:
                     <img src={p.image} className="w-12 h-12 rounded-lg object-cover" referrerPolicy="no-referrer" />
                     <div>
                       <h4 className="font-bold">{p.name}</h4>
-                      <p className="text-xs text-gray-400 uppercase tracking-widest">{p.category} • R$ {p.price.toFixed(2)}</p>
+                      <p className="text-xs text-gray-400 uppercase tracking-widest">
+                        {p.category} • R$ {p.price.toFixed(2)} • Estoque: {p.stock}
+                      </p>
                     </div>
                   </div>
-                  <button 
-                    onClick={() => handleDeleteProduct(p.id)}
-                    className="p-2 text-gray-300 hover:text-red-500 transition-colors"
-                  >
-                    <Trash2 size={20} />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => handleEditProduct(p)}
+                      className="p-2 text-gray-300 hover:text-brand-orange transition-colors"
+                    >
+                      <Edit size={20} />
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteProduct(p.id)}
+                      className="p-2 text-gray-300 hover:text-red-500 transition-colors"
+                    >
+                      <Trash2 size={20} />
+                    </button>
+                  </div>
                 </div>
               ))
             ) : (
@@ -660,12 +856,20 @@ const AdminPage = ({ products, posts, onRefresh }: { products: Product[], posts:
                       <p className="text-xs text-gray-400 uppercase tracking-widest">{p.category} • {p.date}</p>
                     </div>
                   </div>
-                  <button 
-                    onClick={() => handleDeletePost(p.id)}
-                    className="p-2 text-gray-300 hover:text-red-500 transition-colors"
-                  >
-                    <Trash2 size={20} />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => handleEditPost(p)}
+                      className="p-2 text-gray-300 hover:text-brand-orange transition-colors"
+                    >
+                      <Edit size={20} />
+                    </button>
+                    <button 
+                      onClick={() => handleDeletePost(p.id)}
+                      className="p-2 text-gray-300 hover:text-red-500 transition-colors"
+                    >
+                      <Trash2 size={20} />
+                    </button>
+                  </div>
                 </div>
               ))
             )}
@@ -680,6 +884,7 @@ const AdminPage = ({ products, posts, onRefresh }: { products: Product[], posts:
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState('home');
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
@@ -719,6 +924,12 @@ export default function App() {
     setCart(prev => prev.filter(item => item.id !== id));
   };
 
+  const handleProductClick = (product: Product) => {
+    setSelectedProductId(product.id);
+    setCurrentPage('product-details');
+    window.scrollTo(0, 0);
+  };
+
   const cartTotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
@@ -734,12 +945,28 @@ export default function App() {
         <AnimatePresence mode="wait">
           {currentPage === 'home' && (
             <motion.div key="home" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <HomePage onNavigate={setCurrentPage} onAddToCart={addToCart} products={products} posts={posts} />
+              <HomePage onNavigate={setCurrentPage} onAddToCart={addToCart} products={products} posts={posts} onProductClick={handleProductClick} />
             </motion.div>
           )}
           {currentPage === 'store' && (
             <motion.div key="store" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <StorePage onAddToCart={addToCart} products={products} />
+              <StorePage onAddToCart={addToCart} products={products} onProductClick={handleProductClick} />
+            </motion.div>
+          )}
+          {currentPage === 'product-details' && selectedProductId && (
+            <motion.div key="details" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              {(() => {
+                const product = products.find(p => p.id === selectedProductId);
+                if (!product) return null;
+                return (
+                  <ProductDetailsPage 
+                    key={product.id}
+                    product={product} 
+                    onAddToCart={addToCart} 
+                    onBack={() => setCurrentPage('store')} 
+                  />
+                );
+              })()}
             </motion.div>
           )}
           {currentPage === 'blog' && (
@@ -761,6 +988,8 @@ export default function App() {
       </main>
 
       <Footer />
+
+      <SupportChat products={products} />
 
       {/* Cart Sidebar */}
       <AnimatePresence>

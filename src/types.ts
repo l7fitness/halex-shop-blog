@@ -5,6 +5,8 @@ export interface Product {
   description: string;
   category: 'suplementos' | 'acessorios' | 'vestuario';
   image: string;
+  images?: string[];
+  stock: number;
   rating: number;
   reviews: number;
 }

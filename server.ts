@@ -18,6 +18,8 @@ db.exec(`
     description TEXT,
     category TEXT,
     image TEXT,
+    images TEXT,
+    stock INTEGER DEFAULT 0,
     rating REAL,
     reviews INTEGER
   );
@@ -35,18 +37,30 @@ db.exec(`
   );
 `);
 
+// Migration: Add missing columns if they don't exist
+try {
+  db.exec("ALTER TABLE products ADD COLUMN images TEXT");
+} catch (e) {
+  // Column already exists or other error
+}
+try {
+  db.exec("ALTER TABLE products ADD COLUMN stock INTEGER DEFAULT 0");
+} catch (e) {
+  // Column already exists or other error
+}
+
 // Seed initial data if empty
 const productCount = db.prepare("SELECT count(*) as count FROM products").get() as { count: number };
 if (productCount.count === 0) {
-  const insertProduct = db.prepare("INSERT INTO products (id, name, price, description, category, image, rating, reviews) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+  const insertProduct = db.prepare("INSERT INTO products (id, name, price, description, category, image, images, stock, rating, reviews) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
   
   const initialProducts = [
-    ['1', 'Whey Protein Isolate - 900g', 189.90, 'Proteína isolada de alta qualidade.', 'suplementos', 'https://picsum.photos/seed/whey/600/600', 4.9, 128],
-    ['2', 'Creatina Monohidratada - 300g', 99.90, 'Aumento de força e performance.', 'suplementos', 'https://picsum.photos/seed/creatine/600/600', 4.8, 245],
-    ['3', 'Pré-Treino Explosive - 300g', 129.90, 'Foco mental e energia duradoura.', 'suplementos', 'https://picsum.photos/seed/preworkout/600/600', 4.7, 89],
-    ['4', 'Coqueteleira Halex Pro', 45.00, 'Design ergonômico e vedação perfeita.', 'acessorios', 'https://picsum.photos/seed/shaker/600/600', 4.5, 56],
-    ['5', 'BCAA 2:1:1 - 120 Cápsulas', 79.90, 'Aminoácidos essenciais.', 'suplementos', 'https://picsum.photos/seed/bcaa/600/600', 4.6, 112],
-    ['6', 'Camiseta Oversized Halex Beast', 89.90, 'Conforto e estilo para o treino.', 'vestuario', 'https://picsum.photos/seed/shirt/600/600', 4.9, 43]
+    ['1', 'Whey Protein Isolate - 900g', 189.90, 'Proteína isolada de alta qualidade.', 'suplementos', 'https://picsum.photos/seed/whey/600/600', JSON.stringify(['https://picsum.photos/seed/whey1/600/600', 'https://picsum.photos/seed/whey2/600/600']), 50, 4.9, 128],
+    ['2', 'Creatina Monohidratada - 300g', 99.90, 'Aumento de força e performance.', 'suplementos', 'https://picsum.photos/seed/creatine/600/600', JSON.stringify(['https://picsum.photos/seed/creatine1/600/600']), 30, 4.8, 245],
+    ['3', 'Pré-Treino Explosive - 300g', 129.90, 'Foco mental e energia duradoura.', 'suplementos', 'https://picsum.photos/seed/preworkout/600/600', JSON.stringify([]), 20, 4.7, 89],
+    ['4', 'Coqueteleira Halex Pro', 45.00, 'Design ergonômico e vedação perfeita.', 'acessorios', 'https://picsum.photos/seed/shaker/600/600', JSON.stringify([]), 100, 4.5, 56],
+    ['5', 'BCAA 2:1:1 - 120 Cápsulas', 79.90, 'Aminoácidos essenciais.', 'suplementos', 'https://picsum.photos/seed/bcaa/600/600', JSON.stringify([]), 45, 4.6, 112],
+    ['6', 'Camiseta Oversized Halex Beast', 89.90, 'Conforto e estilo para o treino.', 'vestuario', 'https://picsum.photos/seed/shirt/600/600', JSON.stringify([]), 15, 4.9, 43]
   ];
 
   for (const p of initialProducts) {
@@ -77,8 +91,12 @@ async function startServer() {
 
   // API Routes
   app.get("/api/products", (req, res) => {
-    const products = db.prepare("SELECT * FROM products").all();
-    res.json(products);
+    const products = db.prepare("SELECT * FROM products").all() as any[];
+    const formattedProducts = products.map(p => ({
+      ...p,
+      images: p.images ? JSON.parse(p.images) : []
+    }));
+    res.json(formattedProducts);
   });
 
   app.get("/api/posts", (req, res) => {
@@ -88,14 +106,21 @@ async function startServer() {
 
   // Admin API - Products
   app.post("/api/products", (req, res) => {
-    const { id, name, price, description, category, image, rating, reviews } = req.body;
-    const info = db.prepare("INSERT INTO products (id, name, price, description, category, image, rating, reviews) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-      .run(id, name, price, description, category, image, rating, reviews);
+    const { id, name, price, description, category, image, images, stock, rating, reviews } = req.body;
+    const info = db.prepare("INSERT INTO products (id, name, price, description, category, image, images, stock, rating, reviews) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .run(id, name, price, description, category, image, JSON.stringify(images || []), stock || 0, rating || 5, reviews || 0);
     res.json({ success: true, id: info.lastInsertRowid });
   });
 
   app.delete("/api/products/:id", (req, res) => {
     db.prepare("DELETE FROM products WHERE id = ?").run(req.params.id);
+    res.json({ success: true });
+  });
+
+  app.put("/api/products/:id", (req, res) => {
+    const { name, price, description, category, image, images, stock, rating, reviews } = req.body;
+    db.prepare("UPDATE products SET name = ?, price = ?, description = ?, category = ?, image = ?, images = ?, stock = ?, rating = ?, reviews = ? WHERE id = ?")
+      .run(name, price, description, category, image, JSON.stringify(images || []), stock || 0, rating || 5, reviews || 0, req.params.id);
     res.json({ success: true });
   });
 
@@ -109,6 +134,13 @@ async function startServer() {
 
   app.delete("/api/posts/:id", (req, res) => {
     db.prepare("DELETE FROM posts WHERE id = ?").run(req.params.id);
+    res.json({ success: true });
+  });
+
+  app.put("/api/posts/:id", (req, res) => {
+    const { title, excerpt, content, category, author, date, image, readTime } = req.body;
+    db.prepare("UPDATE posts SET title = ?, excerpt = ?, content = ?, category = ?, author = ?, date = ?, image = ?, readTime = ? WHERE id = ?")
+      .run(title, excerpt, content, category, author, date, image, readTime, req.params.id);
     res.json({ success: true });
   });
 

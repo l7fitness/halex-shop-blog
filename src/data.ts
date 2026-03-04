@@ -8,6 +8,8 @@ export const PRODUCTS: Product[] = [
     description: 'Proteína isolada de alta qualidade para recuperação muscular rápida e ganho de massa magra.',
     category: 'suplementos',
     image: 'https://picsum.photos/seed/whey/600/600',
+    images: ['https://picsum.photos/seed/whey1/600/600', 'https://picsum.photos/seed/whey2/600/600'],
+    stock: 50,
     rating: 4.9,
     reviews: 128
   },
@@ -18,6 +20,8 @@ export const PRODUCTS: Product[] = [
     description: 'Aumento de força, explosão e performance nos treinos de alta intensidade.',
     category: 'suplementos',
     image: 'https://picsum.photos/seed/creatine/600/600',
+    images: ['https://picsum.photos/seed/creatine1/600/600'],
+    stock: 30,
     rating: 4.8,
     reviews: 245
   },
@@ -28,6 +32,7 @@ export const PRODUCTS: Product[] = [
     description: 'Foco mental, energia duradoura e pump muscular insano para seus treinos.',
     category: 'suplementos',
     image: 'https://picsum.photos/seed/preworkout/600/600',
+    stock: 20,
     rating: 4.7,
     reviews: 89
   },
@@ -38,6 +43,7 @@ export const PRODUCTS: Product[] = [
     description: 'Design ergonômico e vedação perfeita para seus shakes diários.',
     category: 'acessorios',
     image: 'https://picsum.photos/seed/shaker/600/600',
+    stock: 100,
     rating: 4.5,
     reviews: 56
   },
@@ -48,6 +54,7 @@ export const PRODUCTS: Product[] = [
     description: 'Aminoácidos essenciais para prevenir o catabolismo e auxiliar na recuperação.',
     category: 'suplementos',
     image: 'https://picsum.photos/seed/bcaa/600/600',
+    stock: 45,
     rating: 4.6,
     reviews: 112
   },
@@ -58,6 +65,7 @@ export const PRODUCTS: Product[] = [
     description: 'Conforto e estilo para o treino e para o dia a dia.',
     category: 'vestuario',
     image: 'https://picsum.photos/seed/shirt/600/600',
+    stock: 15,
     rating: 4.9,
     reviews: 43
   }
