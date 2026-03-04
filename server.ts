@@ -1,4 +1,5 @@
 import express from "express";
+import axios from "axios";
 import { createServer as createViteServer } from "vite";
 import Database from "better-sqlite3";
 import path from "path";
@@ -87,7 +88,8 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json());
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
   // API Routes
   app.get("/api/products", (req, res) => {
@@ -142,6 +144,76 @@ async function startServer() {
     db.prepare("UPDATE posts SET title = ?, excerpt = ?, content = ?, category = ?, author = ?, date = ?, image = ?, readTime = ? WHERE id = ?")
       .run(title, excerpt, content, category, author, date, image, readTime, req.params.id);
     res.json({ success: true });
+  });
+
+  // InfinitePay Checkout
+  app.post("/api/checkout", async (req, res) => {
+    const { items, total } = req.body;
+    
+    // For L7Fitness, we only need the handle (InfiniteTag)
+    const rawHandle = process.env.INFINITEPAY_HANDLE || "l7fitness";
+    const handle = rawHandle.replace('$', '').trim();
+    const appUrl = process.env.APP_URL || 'http://localhost:3000';
+    
+    try {
+      // Real InfinitePay API Call (Public Checkout Links)
+      const payload = {
+        handle: handle,
+        order_nsu: "L7-" + Date.now(),
+        items: items.map((item: any) => ({
+          description: item.name,
+          quantity: parseInt(item.quantity),
+          price: Math.round(parseFloat(item.price) * 100) // price in cents
+        })),
+        redirect_url: `${appUrl}/checkout/success`,
+        webhook_url: `${appUrl}/api/webhook-infinitepay`
+      };
+
+      console.log("InfinitePay Request Payload:", JSON.stringify(payload));
+
+      const response = await axios.post("https://api.infinitepay.io/invoices/public/checkout/links", payload, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        timeout: 15000
+      });
+
+      console.log("InfinitePay Response Data:", JSON.stringify(response.data));
+
+      const checkoutUrl = response.data?.checkout_url;
+      
+      if (checkoutUrl) {
+        res.json({ url: checkoutUrl, id: checkoutUrl.split('/').pop() });
+      } else {
+        throw new Error("Link de checkout não encontrado na resposta da API");
+      }
+    } catch (error: any) {
+      const errorDetail = error.response?.data || error.message;
+      console.error("InfinitePay Error Detail:", errorDetail);
+      
+      // Fallback to simulation
+      res.json({ 
+        url: `https://pay.infinitepay.io/${handle}/checkout-simulado`,
+        id: "sim_" + Date.now(),
+        simulated: true,
+        debug_error: errorDetail
+      });
+    }
+  });
+
+  // InfinitePay Webhook Handler
+  app.post("/api/webhook-infinitepay", (req, res) => {
+    const data = req.body;
+    console.log("InfinitePay Webhook Received:", JSON.stringify(data));
+    
+    // Here you would typically:
+    // 1. Validate the payment
+    // 2. Update order status in your database
+    // 3. Trigger shipping or email notifications
+    
+    // Respond quickly with 200 OK as per documentation
+    res.status(200).send("OK");
   });
 
   // Vite middleware for development

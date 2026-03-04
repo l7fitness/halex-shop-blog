@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShoppingBag, Menu, X, User, Search, ChevronRight, Instagram, Facebook, Youtube, Plus, Trash2, LayoutDashboard, Package, FileText, Edit } from 'lucide-react';
+import { ShoppingBag, Menu, X, User, Search, ChevronRight, Instagram, Facebook, Youtube, Plus, Trash2, LayoutDashboard, Package, FileText, Edit, Upload, CheckCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PRODUCTS, POSTS } from './data';
 import { Product, BlogPost, CartItem } from './types';
@@ -218,7 +218,7 @@ const Footer = () => (
 
 // --- Pages ---
 
-const HomePage = ({ onNavigate, onAddToCart, products, posts, onProductClick }: { onNavigate: (p: string) => void, onAddToCart: (p: Product) => void, products: Product[], posts: BlogPost[], onProductClick: (p: Product) => void }) => (
+const HomePage = ({ onNavigate, onAddToCart, products, posts, onProductClick, onPostClick }: { onNavigate: (p: string) => void, onAddToCart: (p: Product) => void, products: Product[], posts: BlogPost[], onProductClick: (p: Product) => void, onPostClick: (p: BlogPost) => void }) => (
   <div className="space-y-24 pb-24">
     {/* Hero Section */}
     <section className="relative h-screen flex items-center overflow-hidden bg-brand-black">
@@ -287,7 +287,7 @@ const HomePage = ({ onNavigate, onAddToCart, products, posts, onProductClick }: 
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
           {posts.map(post => (
-            <BlogPostCard key={post.id} post={post} onClick={() => onNavigate('blog')} />
+            <BlogPostCard key={post.id} post={post} onClick={onPostClick} />
           ))}
         </div>
       </div>
@@ -331,7 +331,7 @@ const StorePage = ({ onAddToCart, products, onProductClick }: { onAddToCart: (p:
   );
 };
 
-const BlogPage = ({ posts }: { posts: BlogPost[] }) => (
+const BlogPage = ({ posts, onPostClick }: { posts: BlogPost[], onPostClick: (p: BlogPost) => void }) => (
   <div className="pt-32 pb-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
     <div className="max-w-3xl mb-16">
       <h1 className="text-5xl font-black mb-4 uppercase">Halex Blog</h1>
@@ -342,11 +342,64 @@ const BlogPage = ({ posts }: { posts: BlogPost[] }) => (
     
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
       {posts.map(post => (
-        <BlogPostCard key={post.id} post={post} onClick={() => {}} />
+        <BlogPostCard key={post.id} post={post} onClick={onPostClick} />
       ))}
     </div>
   </div>
 );
+
+const BlogPostDetailsPage: React.FC<{ post: BlogPost, onBack: () => void }> = ({ post, onBack }) => {
+  return (
+    <div className="pt-32 pb-24 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+      <button 
+        onClick={onBack}
+        className="flex items-center gap-2 text-gray-400 hover:text-brand-orange transition-colors mb-8 group"
+      >
+        <ChevronRight size={20} className="rotate-180 group-hover:-translate-x-1 transition-transform" />
+        <span className="text-sm font-bold uppercase tracking-widest">Voltar para o Blog</span>
+      </button>
+
+      <div className="space-y-8">
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 text-xs font-bold uppercase tracking-widest text-brand-orange">
+            <span>{post.category}</span>
+            <span className="w-1 h-1 bg-gray-300 rounded-full" />
+            <span className="text-gray-400">{post.date}</span>
+            <span className="w-1 h-1 bg-gray-300 rounded-full" />
+            <span className="text-gray-400">{post.readTime}</span>
+          </div>
+          <h1 className="text-4xl md:text-6xl font-black leading-tight uppercase">
+            {post.title}
+          </h1>
+          <div className="flex items-center gap-3 pt-4">
+            <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+              <User size={20} className="text-gray-400" />
+            </div>
+            <div>
+              <p className="text-sm font-bold">{post.author}</p>
+              <p className="text-xs text-gray-400">Especialista Halex</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="aspect-video rounded-3xl overflow-hidden border border-gray-100">
+          <img 
+            src={post.image} 
+            alt={post.title} 
+            className="w-full h-full object-cover"
+            referrerPolicy="no-referrer"
+          />
+        </div>
+
+        <div className="prose prose-lg max-w-none">
+          <div className="text-gray-600 leading-relaxed space-y-6 whitespace-pre-wrap">
+            {post.content}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const TipsPage = () => {
   const [goal, setGoal] = useState('emagrecimento');
@@ -659,6 +712,22 @@ const AdminPage = ({ products, posts, onRefresh }: { products: Product[], posts:
     setShowForm(true);
   };
 
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'product' | 'post') => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        if (type === 'product') {
+          setNewProduct({ ...newProduct, image: base64String });
+        } else {
+          setNewPost({ ...newPost, image: base64String });
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleDeleteProduct = async (id: string) => {
     if (confirm('Tem certeza que deseja excluir este produto?')) {
       await fetch(`/api/products/${id}`, { method: 'DELETE' });
@@ -746,14 +815,25 @@ const AdminPage = ({ products, posts, onRefresh }: { products: Product[], posts:
                       <option value="vestuario">Vestuário</option>
                     </select>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <input 
-                      placeholder="Imagem Principal (URL)" 
-                      className="w-full p-4 bg-gray-50 rounded-xl border-none outline-none"
-                      value={newProduct.image}
-                      onChange={e => setNewProduct({...newProduct, image: e.target.value})}
-                      required
-                    />
+                  <div className="grid grid-cols-1 gap-4">
+                    <div className="relative group">
+                      <input 
+                        placeholder="Imagem Principal (URL)" 
+                        className="w-full p-4 bg-gray-50 rounded-xl border-none outline-none pr-12"
+                        value={newProduct.image}
+                        onChange={e => setNewProduct({...newProduct, image: e.target.value})}
+                        required
+                      />
+                      <label className="absolute right-4 top-1/2 -translate-y-1/2 cursor-pointer text-gray-400 hover:text-brand-orange transition-colors">
+                        <Upload size={20} />
+                        <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'product')} />
+                      </label>
+                    </div>
+                    {newProduct.image && (
+                      <div className="relative w-20 h-20 rounded-lg overflow-hidden border border-gray-100">
+                        <img src={newProduct.image} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      </div>
+                    )}
                     <input 
                       placeholder="Estoque" 
                       type="number"
@@ -800,6 +880,37 @@ const AdminPage = ({ products, posts, onRefresh }: { products: Product[], posts:
                     <option value="treino">Treino</option>
                     <option value="dieta">Dieta</option>
                   </select>
+                  <div className="grid grid-cols-2 gap-4">
+                    <input 
+                      placeholder="Autor" 
+                      className="w-full p-4 bg-gray-50 rounded-xl border-none outline-none"
+                      value={newPost.author}
+                      onChange={e => setNewPost({...newPost, author: e.target.value})}
+                    />
+                    <input 
+                      placeholder="Tempo de Leitura (ex: 5 min)" 
+                      className="w-full p-4 bg-gray-50 rounded-xl border-none outline-none"
+                      value={newPost.readTime}
+                      onChange={e => setNewPost({...newPost, readTime: e.target.value})}
+                    />
+                  </div>
+                  <div className="relative group">
+                    <input 
+                      placeholder="Imagem do Post (URL)" 
+                      className="w-full p-4 bg-gray-50 rounded-xl border-none outline-none pr-12"
+                      value={newPost.image}
+                      onChange={e => setNewPost({...newPost, image: e.target.value})}
+                    />
+                    <label className="absolute right-4 top-1/2 -translate-y-1/2 cursor-pointer text-gray-400 hover:text-brand-orange transition-colors">
+                      <Upload size={20} />
+                      <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'post')} />
+                    </label>
+                  </div>
+                  {newPost.image && (
+                    <div className="relative w-full aspect-video rounded-xl overflow-hidden border border-gray-100">
+                      <img src={newPost.image} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    </div>
+                  )}
                   <textarea 
                     placeholder="Conteúdo" 
                     className="w-full p-4 bg-gray-50 rounded-xl border-none outline-none h-32"
@@ -853,7 +964,7 @@ const AdminPage = ({ products, posts, onRefresh }: { products: Product[], posts:
                     <img src={p.image} className="w-12 h-12 rounded-lg object-cover" referrerPolicy="no-referrer" />
                     <div>
                       <h4 className="font-bold">{p.title}</h4>
-                      <p className="text-xs text-gray-400 uppercase tracking-widest">{p.category} • {p.date}</p>
+                      <p className="text-xs text-gray-400 uppercase tracking-widest">{p.category} • {p.author} • {p.readTime}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -880,15 +991,43 @@ const AdminPage = ({ products, posts, onRefresh }: { products: Product[], posts:
   );
 };
 
+const CheckoutSuccessPage = ({ onContinue }: { onContinue: () => void }) => {
+  return (
+    <div className="pt-32 pb-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+      <motion.div 
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="bg-white p-12 rounded-[40px] border border-gray-100 shadow-xl max-w-xl mx-auto"
+      >
+        <div className="w-24 h-24 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-8">
+          <CheckCircle className="text-green-500" size={48} />
+        </div>
+        <h1 className="text-4xl font-black mb-4 uppercase">Pagamento Confirmado!</h1>
+        <p className="text-gray-500 text-lg mb-10">
+          Seu pedido foi processado com sucesso. Você receberá um e-mail com os detalhes da entrega em instantes.
+        </p>
+        <button 
+          onClick={onContinue}
+          className="btn-primary w-full py-4 text-lg"
+        >
+          Continuar Comprando
+        </button>
+      </motion.div>
+    </div>
+  );
+};
+
 // --- Main App ---
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState('home');
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [posts, setPosts] = useState<BlogPost[]>([]);
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -907,6 +1046,12 @@ export default function App() {
 
   useEffect(() => {
     fetchData();
+    if (window.location.pathname === '/checkout/success') {
+      setCurrentPage('checkout-success');
+      setCart([]);
+      // Clean up URL
+      window.history.replaceState({}, '', '/');
+    }
   }, []);
 
   const addToCart = (product: Product) => {
@@ -930,6 +1075,44 @@ export default function App() {
     window.scrollTo(0, 0);
   };
 
+  const handlePostClick = (post: BlogPost) => {
+    setSelectedPostId(post.id);
+    setCurrentPage('blog-details');
+    window.scrollTo(0, 0);
+  };
+
+  const handleCheckout = async () => {
+    if (cart.length === 0) return;
+    
+    setIsCheckingOut(true);
+    try {
+      const response = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          items: cart,
+          total: cartTotal,
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (data.url) {
+        // Redirect to InfinitePay checkout
+        window.location.href = data.url;
+      } else {
+        alert('Erro ao iniciar o checkout. Tente novamente.');
+      }
+    } catch (error) {
+      console.error('Checkout error:', error);
+      alert('Erro de conexão. Verifique sua internet.');
+    } finally {
+      setIsCheckingOut(false);
+    }
+  };
+
   const cartTotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
@@ -945,7 +1128,7 @@ export default function App() {
         <AnimatePresence mode="wait">
           {currentPage === 'home' && (
             <motion.div key="home" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <HomePage onNavigate={setCurrentPage} onAddToCart={addToCart} products={products} posts={posts} onProductClick={handleProductClick} />
+              <HomePage onNavigate={setCurrentPage} onAddToCart={addToCart} products={products} posts={posts} onProductClick={handleProductClick} onPostClick={handlePostClick} />
             </motion.div>
           )}
           {currentPage === 'store' && (
@@ -971,7 +1154,22 @@ export default function App() {
           )}
           {currentPage === 'blog' && (
             <motion.div key="blog" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <BlogPage posts={posts} />
+              <BlogPage posts={posts} onPostClick={handlePostClick} />
+            </motion.div>
+          )}
+          {currentPage === 'blog-details' && selectedPostId && (
+            <motion.div key="blog-details" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              {(() => {
+                const post = posts.find(p => p.id === selectedPostId);
+                if (!post) return null;
+                return (
+                  <BlogPostDetailsPage 
+                    key={post.id}
+                    post={post} 
+                    onBack={() => setCurrentPage('blog')} 
+                  />
+                );
+              })()}
             </motion.div>
           )}
           {currentPage === 'tips' && (
@@ -982,6 +1180,11 @@ export default function App() {
           {currentPage === 'admin' && (
             <motion.div key="admin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <AdminPage products={products} posts={posts} onRefresh={fetchData} />
+            </motion.div>
+          )}
+          {currentPage === 'checkout-success' && (
+            <motion.div key="checkout-success" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <CheckoutSuccessPage onContinue={() => setCurrentPage('home')} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -1050,8 +1253,19 @@ export default function App() {
                     <span className="text-gray-500 font-medium">Total</span>
                     <span className="text-2xl font-black">R$ {cartTotal.toFixed(2)}</span>
                   </div>
-                  <button className="w-full btn-primary py-4 text-lg">
-                    Finalizar Compra
+                  <button 
+                    onClick={handleCheckout}
+                    disabled={isCheckingOut}
+                    className={`w-full btn-primary py-4 text-lg flex items-center justify-center gap-2 ${isCheckingOut ? 'opacity-70 cursor-not-allowed' : ''}`}
+                  >
+                    {isCheckingOut ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Processando...
+                      </>
+                    ) : (
+                      'Finalizar Compra'
+                    )}
                   </button>
                 </div>
               )}
