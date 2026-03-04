@@ -1,0 +1,835 @@
+import React, { useState, useEffect } from 'react';
+import { ShoppingBag, Menu, X, User, Search, ChevronRight, Instagram, Facebook, Youtube, Plus, Trash2, LayoutDashboard, Package, FileText } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { PRODUCTS, POSTS } from './data';
+import { Product, BlogPost, CartItem } from './types';
+
+import { generateHealthTips } from './services/geminiService';
+
+// --- Components ---
+
+const Navbar = ({ cartCount, onCartClick, onNavigate }: { cartCount: number, onCartClick: () => void, onNavigate: (page: string) => void }) => {
+  const [isScrolled, setIsScrolled] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => setIsScrolled(window.scrollY > 20);
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  return (
+    <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${isScrolled ? 'bg-white/90 backdrop-blur-md shadow-sm py-3' : 'bg-transparent py-6'}`}>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
+        <div className="flex items-center gap-8">
+          <button onClick={() => onNavigate('home')} className="text-2xl font-display font-black tracking-tighter text-brand-black hover:text-brand-orange transition-colors">
+            HALEX<span className="text-brand-orange">SHOP</span>
+          </button>
+          
+          <div className="hidden md:flex items-center gap-6">
+            <button onClick={() => onNavigate('home')} className="nav-link">Início</button>
+            <button onClick={() => onNavigate('store')} className="nav-link">Loja</button>
+            <button onClick={() => onNavigate('blog')} className="nav-link">Blog</button>
+            <button onClick={() => onNavigate('tips')} className="nav-link">Dicas AI</button>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <button className="p-2 text-gray-600 hover:text-brand-orange transition-colors hidden sm:block">
+            <Search size={20} />
+          </button>
+          <button onClick={() => onNavigate('admin')} className="p-2 text-gray-600 hover:text-brand-orange transition-colors hidden sm:block">
+            <User size={20} />
+          </button>
+          <button onClick={onCartClick} className="relative p-2 text-gray-600 hover:text-brand-orange transition-colors">
+            <ShoppingBag size={20} />
+            {cartCount > 0 && (
+              <span className="absolute top-0 right-0 bg-brand-orange text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                {cartCount}
+              </span>
+            )}
+          </button>
+          <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="md:hidden p-2 text-gray-600">
+            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile Menu */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="md:hidden bg-white border-t border-gray-100 overflow-hidden"
+          >
+            <div className="px-4 py-6 flex flex-col gap-4">
+              <button onClick={() => { onNavigate('home'); setIsMobileMenuOpen(false); }} className="text-left py-2 font-medium">Início</button>
+              <button onClick={() => { onNavigate('store'); setIsMobileMenuOpen(false); }} className="text-left py-2 font-medium">Loja</button>
+              <button onClick={() => { onNavigate('blog'); setIsMobileMenuOpen(false); }} className="text-left py-2 font-medium">Blog</button>
+              <button onClick={() => { onNavigate('tips'); setIsMobileMenuOpen(false); }} className="text-left py-2 font-medium">Dicas AI</button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </nav>
+  );
+};
+
+const ProductCard: React.FC<{ product: Product, onAddToCart: (p: Product) => void }> = ({ product, onAddToCart }) => (
+  <motion.div 
+    whileHover={{ y: -5 }}
+    className="group bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all"
+  >
+    <div className="relative aspect-square overflow-hidden bg-gray-50">
+      <img 
+        src={product.image} 
+        alt={product.name} 
+        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+        referrerPolicy="no-referrer"
+      />
+      <div className="absolute top-3 left-3">
+        <span className="bg-white/90 backdrop-blur-sm px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider text-brand-black">
+          {product.category}
+        </span>
+      </div>
+    </div>
+    <div className="p-4">
+      <h3 className="font-display font-bold text-gray-900 mb-1 line-clamp-1">{product.name}</h3>
+      <div className="flex items-center gap-2 mb-3">
+        <div className="flex text-yellow-400">
+          {[...Array(5)].map((_, i) => (
+            <span key={i} className={i < Math.floor(product.rating) ? 'fill-current' : 'text-gray-300'}>★</span>
+          ))}
+        </div>
+        <span className="text-xs text-gray-400">({product.reviews})</span>
+      </div>
+      <div className="flex items-center justify-between">
+        <span className="text-lg font-bold text-brand-orange">R$ {product.price.toFixed(2)}</span>
+        <button 
+          onClick={() => onAddToCart(product)}
+          className="p-2 bg-brand-black text-white rounded-full hover:bg-brand-orange transition-colors"
+        >
+          <ShoppingBag size={18} />
+        </button>
+      </div>
+    </div>
+  </motion.div>
+);
+
+const BlogPostCard: React.FC<{ post: BlogPost, onClick: (p: BlogPost) => void }> = ({ post, onClick }) => (
+  <motion.div 
+    whileHover={{ y: -5 }}
+    onClick={() => onClick(post)}
+    className="group cursor-pointer"
+  >
+    <div className="aspect-[16/9] rounded-2xl overflow-hidden mb-4 border border-gray-100">
+      <img 
+        src={post.image} 
+        alt={post.title} 
+        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+        referrerPolicy="no-referrer"
+      />
+    </div>
+    <div className="space-y-2">
+      <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-widest text-brand-orange">
+        <span>{post.category}</span>
+        <span className="w-1 h-1 bg-gray-300 rounded-full" />
+        <span className="text-gray-400">{post.readTime}</span>
+      </div>
+      <h3 className="text-xl font-display font-bold text-gray-900 group-hover:text-brand-orange transition-colors leading-tight">
+        {post.title}
+      </h3>
+      <p className="text-gray-600 text-sm line-clamp-2">
+        {post.excerpt}
+      </p>
+    </div>
+  </motion.div>
+);
+
+const Footer = () => (
+  <footer className="bg-brand-black text-white pt-20 pb-10">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
+        <div className="col-span-1 md:col-span-2">
+          <h2 className="text-3xl font-display font-black tracking-tighter mb-6">
+            HALEX<span className="text-brand-orange">SHOP</span>
+          </h2>
+          <p className="text-gray-400 max-w-md mb-8">
+            Sua jornada para a melhor versão começa aqui. Suplementação de elite, 
+            estratégias de treino e nutrição baseadas em ciência.
+          </p>
+          <div className="flex gap-4">
+            <a href="#" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center hover:bg-brand-orange transition-colors">
+              <Instagram size={20} />
+            </a>
+            <a href="#" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center hover:bg-brand-orange transition-colors">
+              <Facebook size={20} />
+            </a>
+            <a href="#" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center hover:bg-brand-orange transition-colors">
+              <Youtube size={20} />
+            </a>
+          </div>
+        </div>
+        
+        <div>
+          <h4 className="font-bold mb-6 uppercase text-xs tracking-widest text-gray-500">Links Rápidos</h4>
+          <ul className="space-y-4 text-gray-400">
+            <li><a href="#" className="hover:text-white transition-colors">Sobre Nós</a></li>
+            <li><a href="#" className="hover:text-white transition-colors">Loja</a></li>
+            <li><a href="#" className="hover:text-white transition-colors">Blog</a></li>
+            <li><a href="#" className="hover:text-white transition-colors">Contato</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <h4 className="font-bold mb-6 uppercase text-xs tracking-widest text-gray-500">Suporte</h4>
+          <ul className="space-y-4 text-gray-400">
+            <li><a href="#" className="hover:text-white transition-colors">Minha Conta</a></li>
+            <li><a href="#" className="hover:text-white transition-colors">Rastreio</a></li>
+            <li><a href="#" className="hover:text-white transition-colors">FAQ</a></li>
+            <li><a href="#" className="hover:text-white transition-colors">Políticas</a></li>
+          </ul>
+        </div>
+      </div>
+      
+      <div className="border-t border-white/10 pt-8 flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-gray-500">
+        <p>© 2024 Halex Shop. Todos os direitos reservados.</p>
+        <div className="flex gap-6">
+          <a href="#" className="hover:text-white transition-colors">Privacidade</a>
+          <a href="#" className="hover:text-white transition-colors">Termos</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+);
+
+// --- Pages ---
+
+const HomePage = ({ onNavigate, onAddToCart, products, posts }: { onNavigate: (p: string) => void, onAddToCart: (p: Product) => void, products: Product[], posts: BlogPost[] }) => (
+  <div className="space-y-24 pb-24">
+    {/* Hero Section */}
+    <section className="relative h-screen flex items-center overflow-hidden bg-brand-black">
+      <div className="absolute inset-0 opacity-40">
+        <img 
+          src="https://picsum.photos/seed/gym-hero/1920/1080?grayscale" 
+          alt="Hero Background" 
+          className="w-full h-full object-cover"
+          referrerPolicy="no-referrer"
+        />
+        <div className="absolute inset-0 bg-gradient-to-r from-brand-black via-brand-black/80 to-transparent" />
+      </div>
+      
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+        <motion.div 
+          initial={{ opacity: 0, x: -50 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.8 }}
+          className="max-w-2xl"
+        >
+          <span className="inline-block px-4 py-1 rounded-full bg-brand-orange/20 text-brand-orange text-xs font-bold uppercase tracking-widest mb-6">
+            Performance de Elite
+          </span>
+          <h1 className="text-6xl md:text-8xl font-display font-black text-white leading-none mb-8">
+            TRANSFORME SEU <span className="text-brand-orange">CORPO</span>
+          </h1>
+          <p className="text-xl text-gray-300 mb-10 leading-relaxed">
+            Suplementação premium e conhecimento especializado para quem não aceita nada menos que a excelência física.
+          </p>
+          <div className="flex flex-wrap gap-4">
+            <button onClick={() => onNavigate('store')} className="btn-primary flex items-center gap-2">
+              Comprar Agora <ChevronRight size={20} />
+            </button>
+            <button onClick={() => onNavigate('blog')} className="btn-secondary border border-white/20">
+              Ler o Blog
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    </section>
+
+    {/* Featured Products */}
+    <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="flex justify-between items-end mb-12">
+        <div>
+          <h2 className="text-4xl font-black mb-4">MAIS VENDIDOS</h2>
+          <p className="text-gray-500">Os favoritos da nossa comunidade.</p>
+        </div>
+        <button onClick={() => onNavigate('store')} className="text-brand-orange font-bold flex items-center gap-1 hover:gap-2 transition-all">
+          Ver todos <ChevronRight size={20} />
+        </button>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+        {products.slice(0, 4).map(product => (
+          <ProductCard key={product.id} product={product} onAddToCart={onAddToCart} />
+        ))}
+      </div>
+    </section>
+
+    {/* Blog Preview */}
+    <section className="bg-gray-50 py-24">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="text-center max-w-2xl mx-auto mb-16">
+          <h2 className="text-4xl font-black mb-4 uppercase">Dicas e Estratégias</h2>
+          <p className="text-gray-500">Conteúdo exclusivo sobre alimentação, treino e dieta para acelerar seus resultados.</p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
+          {posts.map(post => (
+            <BlogPostCard key={post.id} post={post} onClick={() => onNavigate('blog')} />
+          ))}
+        </div>
+      </div>
+    </section>
+  </div>
+);
+
+const StorePage = ({ onAddToCart, products }: { onAddToCart: (p: Product) => void, products: Product[] }) => {
+  const [filter, setFilter] = useState('todos');
+  
+  const filteredProducts = filter === 'todos' 
+    ? products 
+    : products.filter(p => p.category === filter);
+
+  return (
+    <div className="pt-32 pb-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 mb-12">
+        <div>
+          <h1 className="text-5xl font-black mb-4 uppercase">Nossa Loja</h1>
+          <p className="text-gray-500">Suplementos e acessórios de alta performance.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {['todos', 'suplementos', 'acessorios', 'vestuario'].map(cat => (
+            <button
+              key={cat}
+              onClick={() => setFilter(cat)}
+              className={`px-4 py-2 rounded-full text-sm font-bold uppercase tracking-wider transition-all ${filter === cat ? 'bg-brand-orange text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+      </div>
+      
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+        {filteredProducts.map(product => (
+          <ProductCard key={product.id} product={product} onAddToCart={onAddToCart} />
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const BlogPage = ({ posts }: { posts: BlogPost[] }) => (
+  <div className="pt-32 pb-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="max-w-3xl mb-16">
+      <h1 className="text-5xl font-black mb-4 uppercase">Halex Blog</h1>
+      <p className="text-gray-500 text-lg">
+        Sua fonte de conhecimento para otimizar cada aspecto da sua vida fitness.
+      </p>
+    </div>
+    
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
+      {posts.map(post => (
+        <BlogPostCard key={post.id} post={post} onClick={() => {}} />
+      ))}
+    </div>
+  </div>
+);
+
+const TipsPage = () => {
+  const [goal, setGoal] = useState('emagrecimento');
+  const [weight, setWeight] = useState(70);
+  const [height, setHeight] = useState(170);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<any>(null);
+
+  const handleGenerate = async () => {
+    setLoading(true);
+    const data = await generateHealthTips(goal, weight, height);
+    setResult(data);
+    setLoading(false);
+  };
+
+  return (
+    <div className="pt-32 pb-24 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="text-center mb-16">
+        <h1 className="text-5xl font-black mb-4 uppercase">Consultoria AI Halex</h1>
+        <p className="text-gray-500 text-lg">Receba recomendações personalizadas baseadas no seu perfil.</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+        <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm space-y-6">
+          <div>
+            <label className="block text-sm font-bold uppercase tracking-wider text-gray-400 mb-2">Seu Objetivo</label>
+            <select 
+              value={goal} 
+              onChange={(e) => setGoal(e.target.value)}
+              className="w-full p-4 bg-gray-50 rounded-2xl border-none focus:ring-2 focus:ring-brand-orange outline-none font-medium"
+            >
+              <option value="emagrecimento">Emagrecimento</option>
+              <option value="hipertrofia">Hipertrofia (Ganho de Massa)</option>
+              <option value="performance">Performance Atlética</option>
+              <option value="saude">Saúde e Bem-estar</option>
+            </select>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-bold uppercase tracking-wider text-gray-400 mb-2">Peso (kg)</label>
+              <input 
+                type="number" 
+                value={weight} 
+                onChange={(e) => setWeight(Number(e.target.value))}
+                className="w-full p-4 bg-gray-50 rounded-2xl border-none focus:ring-2 focus:ring-brand-orange outline-none font-medium"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-bold uppercase tracking-wider text-gray-400 mb-2">Altura (cm)</label>
+              <input 
+                type="number" 
+                value={height} 
+                onChange={(e) => setHeight(Number(e.target.value))}
+                className="w-full p-4 bg-gray-50 rounded-2xl border-none focus:ring-2 focus:ring-brand-orange outline-none font-medium"
+              />
+            </div>
+          </div>
+
+          <button 
+            onClick={handleGenerate}
+            disabled={loading}
+            className="w-full btn-primary py-4 text-lg disabled:opacity-50"
+          >
+            {loading ? 'Analisando...' : 'Gerar Meu Plano'}
+          </button>
+        </div>
+
+        <div className="space-y-6">
+          {result ? (
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-6"
+            >
+              <div className="bg-orange-50 p-6 rounded-3xl border border-orange-100">
+                <h3 className="font-bold text-brand-orange uppercase text-xs tracking-widest mb-4">Dicas de Alimentação</h3>
+                <ul className="space-y-3">
+                  {result.dietTips.map((tip: string, i: number) => (
+                    <li key={i} className="text-sm text-gray-700 flex gap-2">
+                      <span className="text-brand-orange font-bold">•</span> {tip}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="bg-gray-900 p-6 rounded-3xl text-white">
+                <h3 className="font-bold text-gray-500 uppercase text-xs tracking-widest mb-4">Dicas de Treino</h3>
+                <ul className="space-y-3">
+                  {result.trainingTips.map((tip: string, i: number) => (
+                    <li key={i} className="text-sm text-gray-300 flex gap-2">
+                      <span className="text-brand-orange font-bold">•</span> {tip}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+                <h3 className="font-bold text-gray-400 uppercase text-xs tracking-widest mb-4">Suplementos Recomendados</h3>
+                <div className="flex flex-wrap gap-2">
+                  {result.recommendedSupplements.map((supp: string, i: number) => (
+                    <span key={i} className="px-3 py-1 bg-gray-100 rounded-full text-xs font-bold text-gray-700">
+                      {supp}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          ) : (
+            <div className="h-full flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-gray-100 rounded-3xl">
+              <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
+                <Search className="text-gray-300" />
+              </div>
+              <p className="text-gray-400 text-sm">Preencha os dados ao lado para receber sua consultoria personalizada via Inteligência Artificial.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const AdminPage = ({ products, posts, onRefresh }: { products: Product[], posts: BlogPost[], onRefresh: () => void }) => {
+  const [activeTab, setActiveTab] = useState<'products' | 'posts'>('products');
+  const [showForm, setShowForm] = useState(false);
+
+  // Product Form State
+  const [newProduct, setNewProduct] = useState<Partial<Product>>({
+    name: '', price: 0, description: '', category: 'suplementos', image: 'https://picsum.photos/seed/new/600/600', rating: 5, reviews: 0
+  });
+
+  // Post Form State
+  const [newPost, setNewPost] = useState<Partial<BlogPost>>({
+    title: '', excerpt: '', content: '', category: 'alimentacao', author: 'Equipe Halex', date: new Date().toISOString().split('T')[0], image: 'https://picsum.photos/seed/post/800/400', readTime: '5 min'
+  });
+
+  const handleAddProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const product = { ...newProduct, id: Date.now().toString() };
+    await fetch('/api/products', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(product)
+    });
+    setShowForm(false);
+    onRefresh();
+  };
+
+  const handleAddPost = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const post = { ...newPost, id: Date.now().toString() };
+    await fetch('/api/posts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(post)
+    });
+    setShowForm(false);
+    onRefresh();
+  };
+
+  const handleDeleteProduct = async (id: string) => {
+    if (confirm('Tem certeza que deseja excluir este produto?')) {
+      await fetch(`/api/products/${id}`, { method: 'DELETE' });
+      onRefresh();
+    }
+  };
+
+  const handleDeletePost = async (id: string) => {
+    if (confirm('Tem certeza que deseja excluir este post?')) {
+      await fetch(`/api/posts/${id}`, { method: 'DELETE' });
+      onRefresh();
+    }
+  };
+
+  return (
+    <div className="pt-32 pb-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 mb-12">
+        <div>
+          <h1 className="text-5xl font-black mb-4 uppercase flex items-center gap-4">
+            Painel ADM <LayoutDashboard className="text-brand-orange" size={40} />
+          </h1>
+          <p className="text-gray-500">Gerencie seus produtos e conteúdo do blog.</p>
+        </div>
+        <button 
+          onClick={() => setShowForm(!showForm)}
+          className="btn-primary flex items-center gap-2"
+        >
+          <Plus size={20} /> {showForm ? 'Cancelar' : activeTab === 'products' ? 'Novo Produto' : 'Novo Post'}
+        </button>
+      </div>
+
+      <div className="flex gap-4 mb-8 border-b border-gray-100 pb-4">
+        <button 
+          onClick={() => { setActiveTab('products'); setShowForm(false); }}
+          className={`flex items-center gap-2 px-6 py-2 rounded-full font-bold uppercase text-xs tracking-widest transition-all ${activeTab === 'products' ? 'bg-brand-black text-white' : 'text-gray-400 hover:text-brand-orange'}`}
+        >
+          <Package size={16} /> Produtos
+        </button>
+        <button 
+          onClick={() => { setActiveTab('posts'); setShowForm(false); }}
+          className={`flex items-center gap-2 px-6 py-2 rounded-full font-bold uppercase text-xs tracking-widest transition-all ${activeTab === 'posts' ? 'bg-brand-black text-white' : 'text-gray-400 hover:text-brand-orange'}`}
+        >
+          <FileText size={16} /> Blog
+        </button>
+      </div>
+
+      <AnimatePresence mode="wait">
+        {showForm ? (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="bg-white p-8 rounded-3xl border border-gray-100 shadow-xl max-w-2xl mx-auto"
+          >
+            <h2 className="text-2xl font-black mb-6 uppercase">
+              {activeTab === 'products' ? 'Adicionar Produto' : 'Adicionar Post'}
+            </h2>
+            
+            <form onSubmit={activeTab === 'products' ? handleAddProduct : handleAddPost} className="space-y-4">
+              {activeTab === 'products' ? (
+                <>
+                  <input 
+                    placeholder="Nome do Produto" 
+                    className="w-full p-4 bg-gray-50 rounded-xl border-none outline-none"
+                    value={newProduct.name}
+                    onChange={e => setNewProduct({...newProduct, name: e.target.value})}
+                    required
+                  />
+                  <div className="grid grid-cols-2 gap-4">
+                    <input 
+                      placeholder="Preço" 
+                      type="number" step="0.01"
+                      className="w-full p-4 bg-gray-50 rounded-xl border-none outline-none"
+                      value={newProduct.price}
+                      onChange={e => setNewProduct({...newProduct, price: Number(e.target.value)})}
+                      required
+                    />
+                    <select 
+                      className="w-full p-4 bg-gray-50 rounded-xl border-none outline-none"
+                      value={newProduct.category}
+                      onChange={e => setNewProduct({...newProduct, category: e.target.value as any})}
+                    >
+                      <option value="suplementos">Suplementos</option>
+                      <option value="acessorios">Acessórios</option>
+                      <option value="vestuario">Vestuário</option>
+                    </select>
+                  </div>
+                  <textarea 
+                    placeholder="Descrição" 
+                    className="w-full p-4 bg-gray-50 rounded-xl border-none outline-none h-32"
+                    value={newProduct.description}
+                    onChange={e => setNewProduct({...newProduct, description: e.target.value})}
+                  />
+                </>
+              ) : (
+                <>
+                  <input 
+                    placeholder="Título do Post" 
+                    className="w-full p-4 bg-gray-50 rounded-xl border-none outline-none"
+                    value={newPost.title}
+                    onChange={e => setNewPost({...newPost, title: e.target.value})}
+                    required
+                  />
+                  <input 
+                    placeholder="Resumo (Excerpt)" 
+                    className="w-full p-4 bg-gray-50 rounded-xl border-none outline-none"
+                    value={newPost.excerpt}
+                    onChange={e => setNewPost({...newPost, excerpt: e.target.value})}
+                  />
+                  <select 
+                    className="w-full p-4 bg-gray-50 rounded-xl border-none outline-none"
+                    value={newPost.category}
+                    onChange={e => setNewPost({...newPost, category: e.target.value as any})}
+                  >
+                    <option value="alimentacao">Alimentação</option>
+                    <option value="treino">Treino</option>
+                    <option value="dieta">Dieta</option>
+                  </select>
+                  <textarea 
+                    placeholder="Conteúdo" 
+                    className="w-full p-4 bg-gray-50 rounded-xl border-none outline-none h-32"
+                    value={newPost.content}
+                    onChange={e => setNewPost({...newPost, content: e.target.value})}
+                  />
+                </>
+              )}
+              <button type="submit" className="w-full btn-primary py-4">Salvar</button>
+            </form>
+          </motion.div>
+        ) : (
+          <motion.div 
+            key={activeTab}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="grid grid-cols-1 gap-4"
+          >
+            {activeTab === 'products' ? (
+              products.map(p => (
+                <div key={p.id} className="bg-white p-4 rounded-2xl border border-gray-100 flex items-center justify-between group hover:shadow-md transition-all">
+                  <div className="flex items-center gap-4">
+                    <img src={p.image} className="w-12 h-12 rounded-lg object-cover" referrerPolicy="no-referrer" />
+                    <div>
+                      <h4 className="font-bold">{p.name}</h4>
+                      <p className="text-xs text-gray-400 uppercase tracking-widest">{p.category} • R$ {p.price.toFixed(2)}</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => handleDeleteProduct(p.id)}
+                    className="p-2 text-gray-300 hover:text-red-500 transition-colors"
+                  >
+                    <Trash2 size={20} />
+                  </button>
+                </div>
+              ))
+            ) : (
+              posts.map(p => (
+                <div key={p.id} className="bg-white p-4 rounded-2xl border border-gray-100 flex items-center justify-between group hover:shadow-md transition-all">
+                  <div className="flex items-center gap-4">
+                    <img src={p.image} className="w-12 h-12 rounded-lg object-cover" referrerPolicy="no-referrer" />
+                    <div>
+                      <h4 className="font-bold">{p.title}</h4>
+                      <p className="text-xs text-gray-400 uppercase tracking-widest">{p.category} • {p.date}</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => handleDeletePost(p.id)}
+                    className="p-2 text-gray-300 hover:text-red-500 transition-colors"
+                  >
+                    <Trash2 size={20} />
+                  </button>
+                </div>
+              ))
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+// --- Main App ---
+
+export default function App() {
+  const [currentPage, setCurrentPage] = useState('home');
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [posts, setPosts] = useState<BlogPost[]>([]);
+
+  const fetchData = async () => {
+    try {
+      const [prodRes, postRes] = await Promise.all([
+        fetch('/api/products'),
+        fetch('/api/posts')
+      ]);
+      const prodData = await prodRes.json();
+      const postData = await postRes.json();
+      setProducts(prodData);
+      setPosts(postData);
+    } catch (error) {
+      console.error("Error fetching data:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const addToCart = (product: Product) => {
+    setCart(prev => {
+      const existing = prev.find(item => item.id === product.id);
+      if (existing) {
+        return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item);
+      }
+      return [...prev, { ...product, quantity: 1 }];
+    });
+    setIsCartOpen(true);
+  };
+
+  const removeFromCart = (id: string) => {
+    setCart(prev => prev.filter(item => item.id !== id));
+  };
+
+  const cartTotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+
+  return (
+    <div className="min-h-screen flex flex-col">
+      <Navbar 
+        cartCount={cartCount} 
+        onCartClick={() => setIsCartOpen(true)} 
+        onNavigate={setCurrentPage} 
+      />
+
+      <main className="flex-grow">
+        <AnimatePresence mode="wait">
+          {currentPage === 'home' && (
+            <motion.div key="home" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <HomePage onNavigate={setCurrentPage} onAddToCart={addToCart} products={products} posts={posts} />
+            </motion.div>
+          )}
+          {currentPage === 'store' && (
+            <motion.div key="store" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <StorePage onAddToCart={addToCart} products={products} />
+            </motion.div>
+          )}
+          {currentPage === 'blog' && (
+            <motion.div key="blog" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <BlogPage posts={posts} />
+            </motion.div>
+          )}
+          {currentPage === 'tips' && (
+            <motion.div key="tips" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <TipsPage />
+            </motion.div>
+          )}
+          {currentPage === 'admin' && (
+            <motion.div key="admin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <AdminPage products={products} posts={posts} onRefresh={fetchData} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </main>
+
+      <Footer />
+
+      {/* Cart Sidebar */}
+      <AnimatePresence>
+        {isCartOpen && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsCartOpen(false)}
+              className="fixed inset-0 bg-black/50 z-[60] backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed top-0 right-0 bottom-0 w-full max-w-md bg-white z-[70] shadow-2xl flex flex-col"
+            >
+              <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+                <h2 className="text-2xl font-black uppercase">Seu Carrinho</h2>
+                <button onClick={() => setIsCartOpen(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                  <X size={24} />
+                </button>
+              </div>
+              
+              <div className="flex-grow overflow-y-auto p-6 space-y-6">
+                {cart.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center space-y-4">
+                    <ShoppingBag size={64} className="text-gray-200" />
+                    <p className="text-gray-500 font-medium">Seu carrinho está vazio.</p>
+                    <button onClick={() => { setIsCartOpen(false); setCurrentPage('store'); }} className="btn-primary">
+                      Começar a Comprar
+                    </button>
+                  </div>
+                ) : (
+                  cart.map(item => (
+                    <div key={item.id} className="flex gap-4">
+                      <div className="w-20 h-20 rounded-xl overflow-hidden bg-gray-50 flex-shrink-0">
+                        <img src={item.image} alt={item.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      </div>
+                      <div className="flex-grow">
+                        <h4 className="font-bold text-sm mb-1">{item.name}</h4>
+                        <p className="text-xs text-gray-500 mb-2">Qtd: {item.quantity}</p>
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-brand-orange">R$ {(item.price * item.quantity).toFixed(2)}</span>
+                          <button onClick={() => removeFromCart(item.id)} className="text-xs text-red-500 hover:underline">Remover</button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              
+              {cart.length > 0 && (
+                <div className="p-6 border-t border-gray-100 bg-gray-50">
+                  <div className="flex items-center justify-between mb-6">
+                    <span className="text-gray-500 font-medium">Total</span>
+                    <span className="text-2xl font-black">R$ {cartTotal.toFixed(2)}</span>
+                  </div>
+                  <button className="w-full btn-primary py-4 text-lg">
+                    Finalizar Compra
+                  </button>
+                </div>
+              )}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
