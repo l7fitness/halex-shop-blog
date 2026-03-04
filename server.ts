@@ -4,11 +4,23 @@ import { createServer as createViteServer } from "vite";
 import Database from "better-sqlite3";
 import path from "path";
 import { fileURLToPath } from "url";
+import { createClient } from "@supabase/supabase-js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const db = new Database("halex.db");
+
+// Supabase Client
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_ANON_KEY;
+const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
+
+if (supabase) {
+  console.log("Supabase integrated successfully.");
+} else {
+  console.warn("Supabase credentials missing. Using local SQLite only.");
+}
 
 // Initialize Database Tables
 db.exec(`
@@ -35,6 +47,16 @@ db.exec(`
     date TEXT,
     image TEXT,
     readTime TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS orders (
+    id TEXT PRIMARY KEY,
+    order_nsu TEXT UNIQUE,
+    customer_email TEXT,
+    items TEXT,
+    total REAL,
+    status TEXT DEFAULT 'pending',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
 
@@ -92,7 +114,17 @@ async function startServer() {
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
   // API Routes
-  app.get("/api/products", (req, res) => {
+  app.get("/api/products", async (req, res) => {
+    if (supabase) {
+      const { data, error } = await supabase.from('products').select('*');
+      if (!error && data && data.length > 0) {
+        return res.json(data.map(p => ({
+          ...p,
+          images: typeof p.images === 'string' ? JSON.parse(p.images) : (p.images || [])
+        })));
+      }
+    }
+    
     const products = db.prepare("SELECT * FROM products").all() as any[];
     const formattedProducts = products.map(p => ({
       ...p,
@@ -101,69 +133,191 @@ async function startServer() {
     res.json(formattedProducts);
   });
 
-  app.get("/api/posts", (req, res) => {
+  app.get("/api/products/:id", async (req, res) => {
+    if (supabase) {
+      const { data, error } = await supabase.from('products').select('*').eq('id', req.params.id).single();
+      if (!error && data) {
+        return res.json({
+          ...data,
+          images: typeof data.images === 'string' ? JSON.parse(data.images) : (data.images || [])
+        });
+      }
+    }
+
+    const product = db.prepare("SELECT * FROM products WHERE id = ?").get(req.params.id) as any;
+    if (product) {
+      res.json({
+        ...product,
+        images: product.images ? JSON.parse(product.images) : []
+      });
+    } else {
+      res.status(404).json({ error: "Product not found" });
+    }
+  });
+
+  app.get("/api/posts", async (req, res) => {
+    if (supabase) {
+      const { data, error } = await supabase.from('posts').select('*');
+      if (!error && data && data.length > 0) {
+        return res.json(data);
+      }
+    }
     const posts = db.prepare("SELECT * FROM posts").all();
     res.json(posts);
   });
 
-  // Admin API - Products
-  app.post("/api/products", (req, res) => {
-    const { id, name, price, description, category, image, images, stock, rating, reviews } = req.body;
-    const info = db.prepare("INSERT INTO products (id, name, price, description, category, image, images, stock, rating, reviews) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-      .run(id, name, price, description, category, image, JSON.stringify(images || []), stock || 0, rating || 5, reviews || 0);
-    res.json({ success: true, id: info.lastInsertRowid });
+  app.get("/api/posts/:id", async (req, res) => {
+    if (supabase) {
+      const { data, error } = await supabase.from('posts').select('*').eq('id', req.params.id).single();
+      if (!error && data) {
+        return res.json(data);
+      }
+    }
+    const post = db.prepare("SELECT * FROM posts WHERE id = ?").get(req.params.id);
+    if (post) {
+      res.json(post);
+    } else {
+      res.status(404).json({ error: "Post not found" });
+    }
   });
 
-  app.delete("/api/products/:id", (req, res) => {
-    db.prepare("DELETE FROM products WHERE id = ?").run(req.params.id);
+  app.get("/api/orders", async (req, res) => {
+    if (supabase) {
+      const { data, error } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
+      if (!error && data) {
+        return res.json(data.map(o => ({
+          ...o,
+          items: typeof o.items === 'string' ? JSON.parse(o.items) : o.items
+        })));
+      }
+    }
+    const orders = db.prepare("SELECT * FROM orders ORDER BY created_at DESC").all() as any[];
+    res.json(orders.map(o => ({
+      ...o,
+      items: JSON.parse(o.items)
+    })));
+  });
+
+  // Admin API - Products
+  app.post("/api/products", async (req, res) => {
+    const { id, name, price, description, category, image, images, stock, rating, reviews } = req.body;
+    const productData = { id, name, price, description, category, image, images: JSON.stringify(images || []), stock: stock || 0, rating: rating || 5, reviews: reviews || 0 };
+    
+    db.prepare("INSERT INTO products (id, name, price, description, category, image, images, stock, rating, reviews) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .run(id, name, price, description, category, image, productData.images, productData.stock, productData.rating, productData.reviews);
+    
+    if (supabase) {
+      await supabase.from('products').upsert([productData]);
+    }
+    
     res.json({ success: true });
   });
 
-  app.put("/api/products/:id", (req, res) => {
+  app.delete("/api/products/:id", async (req, res) => {
+    db.prepare("DELETE FROM products WHERE id = ?").run(req.params.id);
+    
+    if (supabase) {
+      await supabase.from('products').delete().eq('id', req.params.id);
+    }
+    
+    res.json({ success: true });
+  });
+
+  app.put("/api/products/:id", async (req, res) => {
     const { name, price, description, category, image, images, stock, rating, reviews } = req.body;
+    const productData = { name, price, description, category, image, images: JSON.stringify(images || []), stock: stock || 0, rating: rating || 5, reviews: reviews || 0 };
+    
     db.prepare("UPDATE products SET name = ?, price = ?, description = ?, category = ?, image = ?, images = ?, stock = ?, rating = ?, reviews = ? WHERE id = ?")
-      .run(name, price, description, category, image, JSON.stringify(images || []), stock || 0, rating || 5, reviews || 0, req.params.id);
+      .run(productData.name, productData.price, productData.description, productData.category, productData.image, productData.images, productData.stock, productData.rating, productData.reviews, req.params.id);
+    
+    if (supabase) {
+      await supabase.from('products').update(productData).eq('id', req.params.id);
+    }
+    
     res.json({ success: true });
   });
 
   // Admin API - Posts
-  app.post("/api/posts", (req, res) => {
+  app.post("/api/posts", async (req, res) => {
     const { id, title, excerpt, content, category, author, date, image, readTime } = req.body;
-    const info = db.prepare("INSERT INTO posts (id, title, excerpt, content, category, author, date, image, readTime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+    const postData = { id, title, excerpt, content, category, author, date, image, readTime };
+    
+    db.prepare("INSERT INTO posts (id, title, excerpt, content, category, author, date, image, readTime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
       .run(id, title, excerpt, content, category, author, date, image, readTime);
-    res.json({ success: true, id: info.lastInsertRowid });
-  });
-
-  app.delete("/api/posts/:id", (req, res) => {
-    db.prepare("DELETE FROM posts WHERE id = ?").run(req.params.id);
+    
+    if (supabase) {
+      await supabase.from('posts').upsert([postData]);
+    }
+    
     res.json({ success: true });
   });
 
-  app.put("/api/posts/:id", (req, res) => {
+  app.delete("/api/posts/:id", async (req, res) => {
+    db.prepare("DELETE FROM posts WHERE id = ?").run(req.params.id);
+    
+    if (supabase) {
+      await supabase.from('posts').delete().eq('id', req.params.id);
+    }
+    
+    res.json({ success: true });
+  });
+
+  app.put("/api/posts/:id", async (req, res) => {
     const { title, excerpt, content, category, author, date, image, readTime } = req.body;
+    const postData = { title, excerpt, content, category, author, date, image, readTime };
+    
     db.prepare("UPDATE posts SET title = ?, excerpt = ?, content = ?, category = ?, author = ?, date = ?, image = ?, readTime = ? WHERE id = ?")
-      .run(title, excerpt, content, category, author, date, image, readTime, req.params.id);
+      .run(postData.title, postData.excerpt, postData.content, postData.category, postData.author, postData.date, postData.image, postData.readTime, req.params.id);
+    
+    if (supabase) {
+      await supabase.from('posts').update(postData).eq('id', req.params.id);
+    }
+    
     res.json({ success: true });
   });
 
   // InfinitePay Checkout
   app.post("/api/checkout", async (req, res) => {
-    const { items, total } = req.body;
+    const { items, total, customer_email } = req.body;
     
     // For L7Fitness, we only need the handle (InfiniteTag)
     const rawHandle = process.env.INFINITEPAY_HANDLE || "l7fitness";
     const handle = rawHandle.replace('$', '').trim();
     const appUrl = process.env.APP_URL || 'http://localhost:3000';
+    const orderNsu = String("L7-" + Date.now());
     
+    // Save order to DB (SQLite + Supabase)
+    const orderData = {
+      id: "ord_" + Date.now(),
+      order_nsu: orderNsu,
+      customer_email: customer_email || 'guest@example.com',
+      items: JSON.stringify(items),
+      total: total,
+      status: 'pending'
+    };
+
+    db.prepare("INSERT INTO orders (id, order_nsu, customer_email, items, total, status) VALUES (?, ?, ?, ?, ?, ?)").run(
+      orderData.id, orderData.order_nsu, orderData.customer_email, orderData.items, orderData.total, orderData.status
+    );
+
+    if (supabase) {
+      await supabase.from('orders').insert([orderData]);
+    }
+
     try {
       // Real InfinitePay API Call (Public Checkout Links)
       const payload = {
         handle: handle,
-        order_nsu: "L7-" + Date.now(),
+        order_nsu: orderNsu,
         items: items.map((item: any) => ({
-          description: item.name,
+          description: String(item.name),
           quantity: parseInt(item.quantity),
-          price: Math.round(parseFloat(item.price) * 100) // price in cents
+          price: Math.round(parseFloat(item.price) * 100)
+        })),
+        itens: items.map((item: any) => ({
+          description: String(item.name),
+          quantity: parseInt(item.quantity),
+          price: Math.round(parseFloat(item.price) * 100)
         })),
         redirect_url: `${appUrl}/checkout/success`,
         webhook_url: `${appUrl}/api/webhook-infinitepay`
@@ -179,18 +333,24 @@ async function startServer() {
         timeout: 15000
       });
 
-      console.log("InfinitePay Response Data:", JSON.stringify(response.data));
+      const responseData = response.data;
+      console.log("InfinitePay Response Data:", JSON.stringify(responseData));
 
-      const checkoutUrl = response.data?.checkout_url;
+      const checkoutUrl = responseData?.checkout_url || 
+                          responseData?.url || 
+                          responseData?.data?.checkout_url ||
+                          responseData?.data?.url;
       
       if (checkoutUrl) {
         res.json({ url: checkoutUrl, id: checkoutUrl.split('/').pop() });
       } else {
-        throw new Error("Link de checkout não encontrado na resposta da API");
+        console.error("InfinitePay Link Missing. Full Response:", JSON.stringify(responseData));
+        const apiError = responseData?.message || responseData?.error || "Estrutura de resposta desconhecida";
+        throw new Error(`Link não encontrado. Resposta da API: ${apiError}`);
       }
     } catch (error: any) {
       const errorDetail = error.response?.data || error.message;
-      console.error("InfinitePay Error Detail:", errorDetail);
+      console.error("InfinitePay Error Detail:", JSON.stringify(errorDetail));
       
       // Fallback to simulation
       res.json({ 
@@ -203,16 +363,23 @@ async function startServer() {
   });
 
   // InfinitePay Webhook Handler
-  app.post("/api/webhook-infinitepay", (req, res) => {
+  app.post("/api/webhook-infinitepay", async (req, res) => {
     const data = req.body;
     console.log("InfinitePay Webhook Received:", JSON.stringify(data));
     
-    // Here you would typically:
-    // 1. Validate the payment
-    // 2. Update order status in your database
-    // 3. Trigger shipping or email notifications
+    const orderNsu = data.order_nsu || data.data?.order_nsu;
+    const status = (data.status === 'paid' || data.data?.status === 'paid') ? 'paid' : 'failed';
+
+    if (orderNsu) {
+      // Update SQLite
+      db.prepare("UPDATE orders SET status = ? WHERE order_nsu = ?").run(status, orderNsu);
+      
+      // Update Supabase
+      if (supabase) {
+        await supabase.from('orders').update({ status }).eq('order_nsu', orderNsu);
+      }
+    }
     
-    // Respond quickly with 200 OK as per documentation
     res.status(200).send("OK");
   });
 

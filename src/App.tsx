@@ -638,8 +638,8 @@ const ProductDetailsPage: React.FC<{ product: Product, onAddToCart: (p: Product)
   );
 };
 
-const AdminPage = ({ products, posts, onRefresh }: { products: Product[], posts: BlogPost[], onRefresh: () => void }) => {
-  const [activeTab, setActiveTab] = useState<'products' | 'posts'>('products');
+const AdminPage = ({ products, posts, orders, onRefresh }: { products: Product[], posts: BlogPost[], orders: any[], onRefresh: () => void }) => {
+  const [activeTab, setActiveTab] = useState<'products' | 'posts' | 'orders'>('products');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -749,14 +749,24 @@ const AdminPage = ({ products, posts, onRefresh }: { products: Product[], posts:
           <h1 className="text-5xl font-black mb-4 uppercase flex items-center gap-4">
             Painel ADM <LayoutDashboard className="text-brand-orange" size={40} />
           </h1>
-          <p className="text-gray-500">Gerencie seus produtos e conteúdo do blog.</p>
+          <p className="text-gray-500">Gerencie seus produtos, conteúdo do blog e pedidos.</p>
         </div>
-        <button 
-          onClick={() => { if(showForm) resetForm(); else setShowForm(true); }}
-          className="btn-primary flex items-center gap-2"
-        >
-          <Plus size={20} /> {showForm ? 'Cancelar' : activeTab === 'products' ? 'Novo Produto' : 'Novo Post'}
-        </button>
+        {activeTab !== 'orders' && (
+          <button 
+            onClick={() => { if(showForm) resetForm(); else setShowForm(true); }}
+            className="btn-primary flex items-center gap-2"
+          >
+            <Plus size={20} /> {showForm ? 'Cancelar' : activeTab === 'products' ? 'Novo Produto' : 'Novo Post'}
+          </button>
+        )}
+        {activeTab === 'orders' && (
+          <button 
+            onClick={onRefresh}
+            className="btn-secondary border border-gray-200 flex items-center gap-2"
+          >
+            <Upload size={20} className="rotate-180" /> Atualizar Pedidos
+          </button>
+        )}
       </div>
 
       <div className="flex gap-4 mb-8 border-b border-gray-100 pb-4">
@@ -771,6 +781,12 @@ const AdminPage = ({ products, posts, onRefresh }: { products: Product[], posts:
           className={`flex items-center gap-2 px-6 py-2 rounded-full font-bold uppercase text-xs tracking-widest transition-all ${activeTab === 'posts' ? 'bg-brand-black text-white' : 'text-gray-400 hover:text-brand-orange'}`}
         >
           <FileText size={16} /> Blog
+        </button>
+        <button 
+          onClick={() => { setActiveTab('orders'); resetForm(); }}
+          className={`flex items-center gap-2 px-6 py-2 rounded-full font-bold uppercase text-xs tracking-widest transition-all ${activeTab === 'orders' ? 'bg-brand-black text-white' : 'text-gray-400 hover:text-brand-orange'}`}
+        >
+          <ShoppingBag size={16} /> Pedidos
         </button>
       </div>
 
@@ -957,7 +973,7 @@ const AdminPage = ({ products, posts, onRefresh }: { products: Product[], posts:
                   </div>
                 </div>
               ))
-            ) : (
+            ) : activeTab === 'posts' ? (
               posts.map(p => (
                 <div key={p.id} className="bg-white p-4 rounded-2xl border border-gray-100 flex items-center justify-between group hover:shadow-md transition-all">
                   <div className="flex items-center gap-4">
@@ -983,6 +999,46 @@ const AdminPage = ({ products, posts, onRefresh }: { products: Product[], posts:
                   </div>
                 </div>
               ))
+            ) : (
+              <div className="space-y-4">
+                {orders.length === 0 ? (
+                  <div className="text-center py-12 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200">
+                    <ShoppingBag className="mx-auto text-gray-300 mb-4" size={48} />
+                    <p className="text-gray-500">Nenhum pedido encontrado.</p>
+                  </div>
+                ) : (
+                  orders.map(order => (
+                    <div key={order.id} className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all">
+                      <div className="flex flex-col md:flex-row justify-between gap-4 mb-4">
+                        <div>
+                          <div className="flex items-center gap-3 mb-1">
+                            <span className="text-lg font-black">{order.order_nsu}</span>
+                            <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${order.status === 'paid' ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'}`}>
+                              {order.status === 'paid' ? 'Pago' : 'Pendente'}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-500">{order.customer_email}</p>
+                          <p className="text-xs text-gray-400 mt-1">{new Date(order.created_at).toLocaleString('pt-BR')}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-2xl font-black text-brand-orange">R$ {order.total.toFixed(2)}</p>
+                        </div>
+                      </div>
+                      <div className="border-t border-gray-50 pt-4">
+                        <h5 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3">Itens do Pedido</h5>
+                        <div className="space-y-2">
+                          {order.items.map((item: any, idx: number) => (
+                            <div key={idx} className="flex justify-between text-sm">
+                              <span className="text-gray-600">{item.quantity}x {item.name}</span>
+                              <span className="font-medium">R$ {(item.price * item.quantity).toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             )}
           </motion.div>
         )}
@@ -1027,18 +1083,22 @@ export default function App() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [posts, setPosts] = useState<BlogPost[]>([]);
+  const [orders, setOrders] = useState<any[]>([]);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
 
   const fetchData = async () => {
     try {
-      const [prodRes, postRes] = await Promise.all([
+      const [prodRes, postRes, orderRes] = await Promise.all([
         fetch('/api/products'),
-        fetch('/api/posts')
+        fetch('/api/posts'),
+        fetch('/api/orders')
       ]);
       const prodData = await prodRes.json();
       const postData = await postRes.json();
+      const orderData = await orderRes.json();
       setProducts(prodData);
       setPosts(postData);
+      setOrders(orderData);
     } catch (error) {
       console.error("Error fetching data:", error);
     }
@@ -1179,7 +1239,7 @@ export default function App() {
           )}
           {currentPage === 'admin' && (
             <motion.div key="admin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <AdminPage products={products} posts={posts} onRefresh={fetchData} />
+              <AdminPage products={products} posts={posts} orders={orders} onRefresh={fetchData} />
             </motion.div>
           )}
           {currentPage === 'checkout-success' && (
