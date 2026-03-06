@@ -426,7 +426,7 @@ const StorePage = ({ onAddToCart, products, onProductClick }: { onAddToCart: (p:
           <p className="text-gray-500">Suplementos e acessórios de alta performance.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {['todos', 'suplementos', 'acessorios', 'vestuario'].map(cat => (
+          {['todos', 'emagrecedores', 'suplementos', 'acessorios', 'vestuario'].map(cat => (
             <button
               key={cat}
               onClick={() => setFilter(cat)}
