@@ -1,6 +1,5 @@
 import express from "express";
 import axios from "axios";
-import { createServer as createViteServer } from "vite";
 import Database from "better-sqlite3";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -12,8 +11,8 @@ const __dirname = path.dirname(__filename);
 const db = new Database("halex.db");
 
 // Supabase Client
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_ANON_KEY;
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
 
 if (supabase) {
@@ -124,6 +123,10 @@ async function startServer() {
 
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok", env: process.env.NODE_ENV, supabase: !!supabase });
+  });
 
   // API Routes
   app.get("/api/products", async (req, res) => {
@@ -447,6 +450,7 @@ app.post("/api/checkout", async (req, res) => {
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
@@ -454,7 +458,8 @@ app.post("/api/checkout", async (req, res) => {
     app.use(vite.middlewares);
   } else {
     app.use(express.static(path.join(__dirname, "dist")));
-    app.get("*", (req, res) => {
+    app.get("*", (req, res, next) => {
+      if (req.path.startsWith("/api")) return next();
       res.sendFile(path.join(__dirname, "dist", "index.html"));
     });
   }
