@@ -1666,10 +1666,11 @@ function MainApp() {
 
   const fetchData = async () => {
     try {
+      const timestamp = Date.now();
       const [prodRes, postRes, orderRes] = await Promise.all([
-        fetch('/api/products'),
-        fetch('/api/posts'),
-        fetch('/api/orders')
+        fetch(`/api/products?t=${timestamp}`),
+        fetch(`/api/posts?t=${timestamp}`),
+        fetch(`/api/orders?t=${timestamp}`)
       ]);
       const prodData = await prodRes.json();
       const postData = await postRes.json();
