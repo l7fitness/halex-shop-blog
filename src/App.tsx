@@ -1,18 +1,87 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { ShoppingBag, Menu, X, User, Search, ChevronRight, Instagram, Facebook, Youtube, Plus, Trash2, LayoutDashboard, Package, FileText, Edit, Upload, CheckCircle, TrendingUp, DollarSign, Users, BarChart3 } from 'lucide-react';
+import React, { useState, useEffect, useMemo, createContext, useContext } from 'react';
+import { ShoppingBag, Menu, X, User, Search, ChevronRight, Instagram, Facebook, Youtube, Plus, Trash2, LayoutDashboard, Package, FileText, Edit, Upload, CheckCircle, TrendingUp, DollarSign, Users, BarChart3, Heart, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
+import { Auth } from '@supabase/auth-ui-react';
+import { ThemeSupa } from '@supabase/auth-ui-shared';
+import { supabase } from './services/supabaseClient';
 import { PRODUCTS, POSTS } from './data';
 import { Product, BlogPost, CartItem } from './types';
 import { SupportChat } from './components/SupportChat';
 
 import { generateHealthTips, generateSalesInsight } from './services/geminiService';
 
+// --- Contexts ---
+const AuthContext = createContext<{ user: any, favorites: any[], toggleFavorite: (id: string, type: 'product' | 'post') => void, isFavorite: (id: string) => boolean, logout: () => void }>({ user: null, favorites: [], toggleFavorite: () => {}, isFavorite: () => false, logout: () => {} });
+
+const AuthProvider = ({ children }: { children: React.ReactNode }) => {
+  const [user, setUser] = useState<any>(null);
+  const [favorites, setFavorites] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (supabase) {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        setUser(session?.user ?? null);
+      });
+
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        setUser(session?.user ?? null);
+      });
+
+      return () => subscription.unsubscribe();
+    }
+  }, []);
+
+  useEffect(() => {
+    if (user) {
+      fetch(`/api/favorites/${user.id}`)
+        .then(res => res.json())
+        .then(data => setFavorites(data));
+    } else {
+      setFavorites([]);
+    }
+  }, [user]);
+
+  const toggleFavorite = async (id: string, type: 'product' | 'post') => {
+    if (!user) return;
+    const existing = favorites.find(f => f.item_id === id);
+    if (existing) {
+      await fetch(`/api/favorites/${user.id}/${id}`, { method: 'DELETE' });
+      setFavorites(favorites.filter(f => f.item_id !== id));
+    } else {
+      await fetch('/api/favorites', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: user.id, item_id: id, item_type: type })
+      });
+      setFavorites([...favorites, { item_id: id, item_type: type }]);
+    }
+  };
+
+  const isFavorite = (id: string) => favorites.some(f => f.item_id === id);
+
+  const logout = async () => {
+    if (supabase) await supabase.auth.signOut();
+    setUser(null);
+  };
+
+  return (
+    <AuthContext.Provider value={{ user, favorites, toggleFavorite, isFavorite, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+const useAuth = () => useContext(AuthContext);
+
 // --- Components ---
 
 const Navbar = ({ cartCount, onCartClick, onNavigate }: { cartCount: number, onCartClick: () => void, onNavigate: (page: string) => void }) => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { user, logout } = useAuth();
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
@@ -21,71 +90,101 @@ const Navbar = ({ cartCount, onCartClick, onNavigate }: { cartCount: number, onC
   }, []);
 
   return (
-    <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${isScrolled ? 'bg-white/90 backdrop-blur-md shadow-sm py-3' : 'bg-transparent py-6'}`}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
-        <div className="flex items-center gap-8">
-          <button onClick={() => onNavigate('home')} className="text-2xl font-display font-black tracking-tighter text-brand-black hover:text-brand-orange transition-colors">
-            HALEX<span className="text-brand-orange">SHOP</span>
-          </button>
-          
-          <div className="hidden md:flex items-center gap-6">
-            <button onClick={() => onNavigate('home')} className="nav-link">Início</button>
-            <button onClick={() => onNavigate('store')} className="nav-link">Loja</button>
-            <button onClick={() => onNavigate('blog')} className="nav-link">Blog</button>
-            <button onClick={() => onNavigate('tips')} className="nav-link">Dicas AI</button>
+    <>
+      <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${isScrolled ? 'bg-white/90 backdrop-blur-md shadow-sm py-3' : 'bg-transparent py-6'}`}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
+          <div className="flex items-center gap-8">
+            <button onClick={() => onNavigate('home')} className="text-2xl font-display font-black tracking-tighter text-brand-black hover:text-brand-orange transition-colors">
+              HALEX<span className="text-brand-orange">SHOP</span>
+            </button>
+            
+            <div className="hidden md:flex items-center gap-6">
+              <button onClick={() => onNavigate('home')} className="nav-link">Início</button>
+              <button onClick={() => onNavigate('store')} className="nav-link">Loja</button>
+              <button onClick={() => onNavigate('blog')} className="nav-link">Blog</button>
+              <button onClick={() => onNavigate('tips')} className="nav-link">Dicas AI</button>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <button className="p-2 text-gray-600 hover:text-brand-orange transition-colors hidden sm:block">
+              <Search size={20} />
+            </button>
+            <button 
+              onClick={() => user ? setIsProfileOpen(true) : setIsAuthOpen(true)} 
+              className="p-2 text-gray-600 hover:text-brand-orange transition-colors flex items-center gap-2"
+            >
+              <User size={20} />
+              {user && <span className="text-[10px] font-bold hidden sm:inline">{user.email.split('@')[0]}</span>}
+            </button>
+            <button onClick={onCartClick} className="relative p-2 text-gray-600 hover:text-brand-orange transition-colors">
+              <ShoppingBag size={20} />
+              {cartCount > 0 && (
+                <span className="absolute top-0 right-0 bg-brand-orange text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                  {cartCount}
+                </span>
+              )}
+            </button>
+            <button onClick={() => onNavigate('admin')} className="p-2 text-gray-600 hover:text-brand-orange transition-colors hidden sm:block">
+              <LayoutDashboard size={20} />
+            </button>
+            {user && (
+              <button onClick={logout} className="p-2 text-gray-600 hover:text-red-500 transition-colors hidden sm:block" title="Sair">
+                <LogOut size={20} />
+              </button>
+            )}
+            <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="md:hidden p-2 text-gray-600">
+              {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          <button className="p-2 text-gray-600 hover:text-brand-orange transition-colors hidden sm:block">
-            <Search size={20} />
-          </button>
-          <button onClick={() => onNavigate('admin')} className="p-2 text-gray-600 hover:text-brand-orange transition-colors hidden sm:block">
-            <User size={20} />
-          </button>
-          <button onClick={onCartClick} className="relative p-2 text-gray-600 hover:text-brand-orange transition-colors">
-            <ShoppingBag size={20} />
-            {cartCount > 0 && (
-              <span className="absolute top-0 right-0 bg-brand-orange text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
-                {cartCount}
-              </span>
-            )}
-          </button>
-          <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="md:hidden p-2 text-gray-600">
-            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-          </button>
-        </div>
-      </div>
+        {/* Mobile Menu */}
+        <AnimatePresence>
+          {isMobileMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="md:hidden bg-white border-t border-gray-100 overflow-hidden"
+            >
+              <div className="px-4 py-6 flex flex-col gap-4">
+                <button onClick={() => { onNavigate('home'); setIsMobileMenuOpen(false); }} className="text-left py-2 font-medium">Início</button>
+                <button onClick={() => { onNavigate('store'); setIsMobileMenuOpen(false); }} className="text-left py-2 font-medium">Loja</button>
+                <button onClick={() => { onNavigate('blog'); setIsMobileMenuOpen(false); }} className="text-left py-2 font-medium">Blog</button>
+                <button onClick={() => { onNavigate('tips'); setIsMobileMenuOpen(false); }} className="text-left py-2 font-medium">Dicas AI</button>
+                {user && <button onClick={() => { logout(); setIsMobileMenuOpen(false); }} className="text-left py-2 font-medium text-red-500">Sair</button>}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </nav>
 
-      {/* Mobile Menu */}
-      <AnimatePresence>
-        {isMobileMenuOpen && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="md:hidden bg-white border-t border-gray-100 overflow-hidden"
-          >
-            <div className="px-4 py-6 flex flex-col gap-4">
-              <button onClick={() => { onNavigate('home'); setIsMobileMenuOpen(false); }} className="text-left py-2 font-medium">Início</button>
-              <button onClick={() => { onNavigate('store'); setIsMobileMenuOpen(false); }} className="text-left py-2 font-medium">Loja</button>
-              <button onClick={() => { onNavigate('blog'); setIsMobileMenuOpen(false); }} className="text-left py-2 font-medium">Blog</button>
-              <button onClick={() => { onNavigate('tips'); setIsMobileMenuOpen(false); }} className="text-left py-2 font-medium">Dicas AI</button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </nav>
+      <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
+      <ProfileModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
+    </>
   );
 };
 
-const ProductCard: React.FC<{ product: Product, onAddToCart: (p: Product) => void, onClick: (p: Product) => void }> = ({ product, onAddToCart, onClick }) => (
-  <motion.div 
-    whileHover={{ y: -5 }}
-    onClick={() => onClick(product)}
-    className={`group bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all cursor-pointer ${product.stock <= 0 ? 'opacity-75' : ''}`}
-  >
-    <div className="relative aspect-square overflow-hidden bg-gray-50">
+const ProductCard: React.FC<{ product: Product, onAddToCart: (p: Product) => void, onClick: (p: Product) => void }> = ({ product, onAddToCart, onClick }) => {
+  const { toggleFavorite, isFavorite, user } = useAuth();
+  const favorited = isFavorite(product.id);
+
+  return (
+    <motion.div 
+      whileHover={{ y: -5 }}
+      onClick={() => onClick(product)}
+      className={`group bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all cursor-pointer relative ${product.stock <= 0 ? 'opacity-75' : ''}`}
+    >
+      {user && (
+        <button 
+          onClick={(e) => { e.stopPropagation(); toggleFavorite(product.id, 'product'); }}
+          className={`absolute top-3 right-3 z-10 p-2 rounded-full backdrop-blur-md transition-all ${favorited ? 'bg-brand-orange text-white' : 'bg-white/80 text-gray-400 hover:text-brand-orange'}`}
+        >
+          <Heart size={16} fill={favorited ? "currentColor" : "none"} />
+        </button>
+      )}
+      <div className="relative aspect-square overflow-hidden bg-gray-50">
       <img 
         src={product.image} 
         alt={product.name} 
@@ -128,15 +227,28 @@ const ProductCard: React.FC<{ product: Product, onAddToCart: (p: Product) => voi
       </div>
     </div>
   </motion.div>
-);
+  );
+};
 
-const BlogPostCard: React.FC<{ post: BlogPost, onClick: (p: BlogPost) => void }> = ({ post, onClick }) => (
-  <motion.div 
-    whileHover={{ y: -5 }}
-    onClick={() => onClick(post)}
-    className="group cursor-pointer"
-  >
-    <div className="aspect-[16/9] rounded-2xl overflow-hidden mb-4 border border-gray-100">
+const BlogPostCard: React.FC<{ post: BlogPost, onClick: (p: BlogPost) => void }> = ({ post, onClick }) => {
+  const { toggleFavorite, isFavorite, user } = useAuth();
+  const favorited = isFavorite(post.id);
+
+  return (
+    <motion.div 
+      whileHover={{ y: -5 }}
+      onClick={() => onClick(post)}
+      className="group cursor-pointer relative"
+    >
+      {user && (
+        <button 
+          onClick={(e) => { e.stopPropagation(); toggleFavorite(post.id, 'post'); }}
+          className={`absolute top-3 right-3 z-10 p-2 rounded-full backdrop-blur-md transition-all ${favorited ? 'bg-brand-orange text-white' : 'bg-white/80 text-gray-400 hover:text-brand-orange'}`}
+        >
+          <Heart size={16} fill={favorited ? "currentColor" : "none"} />
+        </button>
+      )}
+      <div className="aspect-[16/9] rounded-2xl overflow-hidden mb-4 border border-gray-100">
       <img 
         src={post.image} 
         alt={post.title} 
@@ -158,7 +270,8 @@ const BlogPostCard: React.FC<{ post: BlogPost, onClick: (p: BlogPost) => void }>
       </p>
     </div>
   </motion.div>
-);
+  );
+};
 
 const Footer = () => (
   <footer className="bg-brand-black text-white pt-20 pb-10">
@@ -1273,7 +1386,231 @@ const CheckoutSuccessPage = ({ onContinue }: { onContinue: () => void }) => {
 
 // --- Main App ---
 
+const AuthModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) => {
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (user) onClose();
+  }, [user]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="absolute inset-0 bg-brand-black/80 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      <motion.div 
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="bg-white w-full max-w-md rounded-[40px] p-8 relative z-10 overflow-hidden"
+      >
+        <button onClick={onClose} className="absolute top-6 right-6 text-gray-400 hover:text-brand-black transition-colors">
+          <X size={24} />
+        </button>
+        
+        <div className="mb-8">
+          <h2 className="text-3xl font-black italic tracking-tighter mb-2">HALEX <span className="text-brand-orange">AUTH</span></h2>
+          <p className="text-gray-500 text-sm">Entre ou crie sua conta para salvar seus favoritos.</p>
+        </div>
+
+        {supabase ? (
+          <Auth 
+            supabaseClient={supabase} 
+            appearance={{ 
+              theme: ThemeSupa,
+              variables: {
+                default: {
+                  colors: {
+                    brand: '#FF6321',
+                    brandAccent: '#E55210',
+                  }
+                }
+              }
+            }}
+            providers={['google', 'github']}
+            localization={{
+              variables: {
+                sign_in: {
+                  email_label: 'E-mail',
+                  password_label: 'Senha',
+                  button_label: 'Entrar',
+                  loading_button_label: 'Entrando...',
+                  social_provider_text: 'Entrar com {{provider}}',
+                  link_text: 'Já tem uma conta? Entre',
+                },
+                sign_up: {
+                  email_label: 'E-mail',
+                  password_label: 'Senha',
+                  button_label: 'Criar Conta',
+                  loading_button_label: 'Criando...',
+                  social_provider_text: 'Criar com {{provider}}',
+                  link_text: 'Não tem uma conta? Crie agora',
+                }
+              }
+            }}
+          />
+        ) : (
+          <div className="p-4 bg-red-50 text-red-500 rounded-2xl text-sm font-bold">
+            Supabase não configurado. Verifique as variáveis de ambiente.
+          </div>
+        )}
+      </motion.div>
+    </div>
+  );
+};
+
+const ProfileModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) => {
+  const { user, favorites, logout } = useAuth();
+  const [activeTab, setActiveTab] = useState<'favorites' | 'orders'>('favorites');
+  const [products, setProducts] = useState<Product[]>([]);
+  const [posts, setPosts] = useState<BlogPost[]>([]);
+  const [userOrders, setUserOrders] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetch('/api/products').then(res => res.json()).then(setProducts);
+      fetch('/api/posts').then(res => res.json()).then(setPosts);
+      if (user) {
+        fetch(`/api/orders/${user.email}`).then(res => res.json()).then(setUserOrders);
+      }
+    }
+  }, [isOpen, user]);
+
+  if (!isOpen || !user) return null;
+
+  const favoriteProducts = products.filter(p => favorites.some(f => f.item_id === p.id && f.item_type === 'product'));
+  const favoritePosts = posts.filter(p => favorites.some(f => f.item_id === p.id && f.item_type === 'post'));
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="absolute inset-0 bg-brand-black/80 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      <motion.div 
+        initial={{ y: 50, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        className="bg-white w-full max-w-2xl rounded-[40px] p-8 relative z-10 max-h-[80vh] overflow-y-auto scrollbar-hide"
+      >
+        <button onClick={onClose} className="absolute top-6 right-6 text-gray-400 hover:text-brand-black transition-colors">
+          <X size={24} />
+        </button>
+
+        <div className="flex items-center gap-6 mb-8">
+          <div className="w-20 h-20 bg-brand-orange rounded-3xl flex items-center justify-center text-white text-3xl font-black">
+            {user.email[0].toUpperCase()}
+          </div>
+          <div>
+            <h2 className="text-2xl font-black">{user.email.split('@')[0]}</h2>
+            <p className="text-gray-500 text-sm">{user.email}</p>
+            <button onClick={logout} className="text-brand-orange text-xs font-bold uppercase tracking-widest mt-2 flex items-center gap-1 hover:underline">
+              <LogOut size={12} /> Sair da Conta
+            </button>
+          </div>
+        </div>
+
+        <div className="flex gap-4 mb-6 border-b border-gray-100 pb-4">
+          <button 
+            onClick={() => setActiveTab('favorites')}
+            className={`text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'favorites' ? 'text-brand-orange' : 'text-gray-400'}`}
+          >
+            Meus Favoritos
+          </button>
+          <button 
+            onClick={() => setActiveTab('orders')}
+            className={`text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'orders' ? 'text-brand-orange' : 'text-gray-400'}`}
+          >
+            Meus Pedidos
+          </button>
+        </div>
+
+        {activeTab === 'favorites' ? (
+          <div className="space-y-8">
+            {favoriteProducts.length > 0 && (
+              <div>
+                <h3 className="text-sm font-black uppercase tracking-widest mb-4">Produtos</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  {favoriteProducts.map(p => (
+                    <div key={p.id} className="flex items-center gap-4 p-2 border border-gray-100 rounded-2xl">
+                      <img src={p.image} alt={p.name} className="w-12 h-12 rounded-xl object-cover" />
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold truncate">{p.name}</p>
+                        <p className="text-[10px] text-brand-orange font-black">R$ {p.price.toFixed(2)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {favoritePosts.length > 0 && (
+              <div>
+                <h3 className="text-sm font-black uppercase tracking-widest mb-4">Artigos do Blog</h3>
+                <div className="space-y-4">
+                  {favoritePosts.map(p => (
+                    <div key={p.id} className="flex items-center gap-4 p-2 border border-gray-100 rounded-2xl">
+                      <img src={p.image} alt={p.title} className="w-16 h-12 rounded-xl object-cover" />
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold truncate">{p.title}</p>
+                        <p className="text-[10px] text-gray-400">{p.author}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {favoriteProducts.length === 0 && favoritePosts.length === 0 && (
+              <div className="text-center py-12">
+                <Heart className="mx-auto text-gray-200 mb-4" size={48} />
+                <p className="text-gray-400 font-bold">Você ainda não salvou nada.</p>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {userOrders.length === 0 ? (
+              <div className="text-center py-12">
+                <ShoppingBag className="mx-auto text-gray-200 mb-4" size={48} />
+                <p className="text-gray-400 font-bold">Você ainda não fez nenhum pedido.</p>
+              </div>
+            ) : (
+              userOrders.map(order => (
+                <div key={order.id} className="p-4 border border-gray-100 rounded-3xl">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-xs font-black uppercase tracking-widest">{order.order_nsu}</span>
+                    <span className={`px-2 py-1 rounded-full text-[8px] font-bold uppercase tracking-widest ${order.status === 'paid' ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'}`}>
+                      {order.status === 'paid' ? 'Pago' : 'Pendente'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <p className="text-xs text-gray-400">{new Date(order.created_at).toLocaleDateString('pt-BR')}</p>
+                    <p className="text-sm font-black text-brand-orange">R$ {order.total.toFixed(2)}</p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </motion.div>
+    </div>
+  );
+};
+
 export default function App() {
+  return (
+    <AuthProvider>
+      <MainApp />
+    </AuthProvider>
+  );
+}
+
+function MainApp() {
+  const { user } = useAuth();
   const [currentPage, setCurrentPage] = useState('home');
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
@@ -1352,6 +1689,7 @@ export default function App() {
         body: JSON.stringify({
           items: cart,
           total: cartTotal,
+          customer_email: user?.email || 'guest@example.com'
         }),
       });
 
@@ -1376,11 +1714,11 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Navbar 
-        cartCount={cartCount} 
-        onCartClick={() => setIsCartOpen(true)} 
-        onNavigate={setCurrentPage} 
-      />
+        <Navbar 
+          cartCount={cartCount} 
+          onCartClick={() => setIsCartOpen(true)} 
+          onNavigate={setCurrentPage} 
+        />
 
       <main className="flex-grow">
         <AnimatePresence mode="wait">

@@ -58,6 +58,15 @@ db.exec(`
     status TEXT DEFAULT 'pending',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS favorites (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    item_id TEXT NOT NULL,
+    item_type TEXT NOT NULL, -- 'product' or 'post'
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, item_id, item_type)
+  );
 `);
 
 // Migration: Add missing columns if they don't exist
@@ -278,7 +287,23 @@ async function startServer() {
   });
 
   // InfinitePay Checkout
-  app.post("/api/checkout", async (req, res) => {
+  app.get("/api/orders/:email", async (req, res) => {
+  const { email } = req.params;
+  try {
+    let orders = [];
+    if (supabase) {
+      const { data, error } = await supabase.from('orders').select('*').eq('customer_email', email).order('created_at', { ascending: false });
+      if (!error) orders = data;
+    } else {
+      orders = db.prepare("SELECT * FROM orders WHERE customer_email = ? ORDER BY created_at DESC").all(email);
+    }
+    res.json(orders.map(o => ({ ...o, items: typeof o.items === 'string' ? JSON.parse(o.items) : o.items })));
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch orders" });
+  }
+});
+
+app.post("/api/checkout", async (req, res) => {
     const { items, total, customer_email } = req.body;
     
     // For L7Fitness, we only need the handle (InfiniteTag)
@@ -382,6 +407,40 @@ async function startServer() {
     }
     
     res.status(200).send("OK");
+  });
+
+  // Favorites API
+  app.get("/api/favorites/:userId", async (req, res) => {
+    const { userId } = req.params;
+    if (supabase) {
+      const { data, error } = await supabase.from('favorites').select('*').eq('user_id', userId);
+      if (!error && data) return res.json(data);
+    }
+    const favorites = db.prepare("SELECT * FROM favorites WHERE user_id = ?").all(userId);
+    res.json(favorites);
+  });
+
+  app.post("/api/favorites", async (req, res) => {
+    const { user_id, item_id, item_type } = req.body;
+    const id = `fav_${Date.now()}`;
+    try {
+      db.prepare("INSERT INTO favorites (id, user_id, item_id, item_type) VALUES (?, ?, ?, ?)").run(id, user_id, item_id, item_type);
+      if (supabase) {
+        await supabase.from('favorites').upsert([{ id, user_id, item_id, item_type }]);
+      }
+      res.json({ success: true, id });
+    } catch (e) {
+      res.status(400).json({ error: "Already favorited or error" });
+    }
+  });
+
+  app.delete("/api/favorites/:userId/:itemId", async (req, res) => {
+    const { userId, itemId } = req.params;
+    db.prepare("DELETE FROM favorites WHERE user_id = ? AND item_id = ?").run(userId, itemId);
+    if (supabase) {
+      await supabase.from('favorites').delete().eq('user_id', userId).eq('item_id', itemId);
+    }
+    res.json({ success: true });
   });
 
   // Vite middleware for development
