@@ -109,7 +109,7 @@ try {
 }
 
 // Supabase Client
-const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || process.env.URL_Supabase;
 const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
 
@@ -127,14 +127,29 @@ async function startServer() {
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-  app.get("/api/health", (req, res) => {
+  app.get("/api/health", async (req, res) => {
+    let supabaseProductsCount = 0;
+    let supabaseError = null;
+    
+    if (supabase) {
+      try {
+        const { count, error } = await supabase.from('products').select('*', { count: 'exact', head: true });
+        supabaseProductsCount = count || 0;
+        supabaseError = error;
+      } catch (e: any) {
+        supabaseError = e.message;
+      }
+    }
+
     res.json({ 
       status: "ok", 
       env: process.env.NODE_ENV, 
       supabase: !!supabase,
       hasUrl: !!supabaseUrl,
       hasKey: !!supabaseKey,
-      sqlite: !!db
+      sqlite: !!db,
+      supabaseProductsCount,
+      supabaseError
     });
   });
 
@@ -176,11 +191,16 @@ async function startServer() {
   app.get("/api/products", async (req, res) => {
     if (supabase) {
       const { data, error } = await supabase.from('products').select('*');
-      if (!error && data && data.length > 0) {
-        return res.json(data.map(p => ({
-          ...p,
-          images: typeof p.images === 'string' ? JSON.parse(p.images) : (p.images || [])
-        })));
+      if (!error && data) {
+        return res.json(data.map(p => {
+          let images = [];
+          try {
+            images = typeof p.images === 'string' ? JSON.parse(p.images) : (p.images || []);
+          } catch (e) {
+            images = [];
+          }
+          return { ...p, images };
+        }));
       }
       if (error) console.error("Supabase products fetch error:", error);
     }
@@ -222,9 +242,10 @@ async function startServer() {
   app.get("/api/posts", async (req, res) => {
     if (supabase) {
       const { data, error } = await supabase.from('posts').select('*');
-      if (!error && data && data.length > 0) {
+      if (!error && data) {
         return res.json(data);
       }
+      if (error) console.error("Supabase posts fetch error:", error);
     }
     if (db) {
       const posts = db.prepare("SELECT * FROM posts").all();
