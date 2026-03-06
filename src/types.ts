@@ -3,7 +3,7 @@ export interface Product {
   name: string;
   price: number;
   description: string;
-  category: 'suplementos' | 'acessorios' | 'vestuario';
+  category: 'suplementos' | 'acessorios' | 'vestuario' | 'emagrecedores';
   image: string;
   images?: string[];
   stock: number;

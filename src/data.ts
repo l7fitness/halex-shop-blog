@@ -2,72 +2,94 @@ import { Product, BlogPost } from './types';
 
 export const PRODUCTS: Product[] = [
   {
-    id: '1',
-    name: 'Whey Protein Isolate - 900g',
-    price: 189.90,
-    description: 'Proteína isolada de alta qualidade para recuperação muscular rápida e ganho de massa magra.',
-    category: 'suplementos',
-    image: 'https://picsum.photos/seed/whey/600/600',
-    images: ['https://picsum.photos/seed/whey1/600/600', 'https://picsum.photos/seed/whey2/600/600'],
+    id: 'l7-ultra-450-kit',
+    name: '1 Kit L7 ULTRA 450mg + Detox',
+    price: 159.90,
+    description: 'Combo completo para emagrecimento com L7 Ultra 450mg e Detox para resultados rápidos e naturais.',
+    category: 'emagrecedores',
+    image: 'https://picsum.photos/seed/l7ultra-kit/600/600',
+    images: ['https://picsum.photos/seed/l7ultra-kit1/600/600'],
     stock: 50,
     rating: 4.9,
-    reviews: 128
+    reviews: 156
   },
   {
-    id: '2',
-    name: 'Creatina Monohidratada - 300g',
-    price: 99.90,
-    description: 'Aumento de força, explosão e performance nos treinos de alta intensidade.',
-    category: 'suplementos',
-    image: 'https://picsum.photos/seed/creatine/600/600',
-    images: ['https://picsum.photos/seed/creatine1/600/600'],
-    stock: 30,
+    id: 'l7-turbo-500-kit',
+    name: 'Kit L7 TURBO 500mg + Detox',
+    price: 189.90,
+    description: 'Potencialize sua queima de gordura com o Kit L7 Turbo 500mg e Detox. Energia e saciedade.',
+    category: 'emagrecedores',
+    image: 'https://picsum.photos/seed/l7turbo-kit/600/600',
+    images: ['https://picsum.photos/seed/l7turbo-kit1/600/600'],
+    stock: 40,
     rating: 4.8,
-    reviews: 245
+    reviews: 92
   },
   {
-    id: '3',
-    name: 'Pré-Treino Explosive - 300g',
-    price: 129.90,
-    description: 'Foco mental, energia duradoura e pump muscular insano para seus treinos.',
-    category: 'suplementos',
-    image: 'https://picsum.photos/seed/preworkout/600/600',
-    stock: 20,
-    rating: 4.7,
-    reviews: 89
-  },
-  {
-    id: '4',
-    name: 'Coqueteleira Halex Pro',
-    price: 45.00,
-    description: 'Design ergonômico e vedação perfeita para seus shakes diários.',
-    category: 'acessorios',
-    image: 'https://picsum.photos/seed/shaker/600/600',
+    id: 'l7-ultra-450',
+    name: 'L7 Ultra 450mg',
+    price: 149.00,
+    description: 'Inibidor de apetite natural com Laranja Moro, L-Carnitina e Psyllium para queima de gordura.',
+    category: 'emagrecedores',
+    image: 'https://picsum.photos/seed/l7ultra/600/600',
     stock: 100,
-    rating: 4.5,
-    reviews: 56
-  },
-  {
-    id: '5',
-    name: 'BCAA 2:1:1 - 120 Cápsulas',
-    price: 79.90,
-    description: 'Aminoácidos essenciais para prevenir o catabolismo e auxiliar na recuperação.',
-    category: 'suplementos',
-    image: 'https://picsum.photos/seed/bcaa/600/600',
-    stock: 45,
-    rating: 4.6,
-    reviews: 112
-  },
-  {
-    id: '6',
-    name: 'Camiseta Oversized Halex Beast',
-    price: 89.90,
-    description: 'Conforto e estilo para o treino e para o dia a dia.',
-    category: 'vestuario',
-    image: 'https://picsum.photos/seed/shirt/600/600',
-    stock: 15,
     rating: 4.9,
-    reviews: 43
+    reviews: 210
+  },
+  {
+    id: 'l7-nitro-750-kit',
+    name: 'Kit L7 Nitro 750mg + Detox Shake',
+    price: 199.90,
+    description: 'A fórmula mais potente: L7 Nitro 750mg combinada com Detox Shake para resultados máximos.',
+    category: 'emagrecedores',
+    image: 'https://picsum.photos/seed/l7nitro-kit/600/600',
+    stock: 25,
+    rating: 5.0,
+    reviews: 78
+  },
+  {
+    id: 'l7-nitro-750',
+    name: 'L7 NITRO 750mg',
+    price: 169.00,
+    description: 'Máxima concentração para queima de gordura abdominal e controle total do apetite.',
+    category: 'emagrecedores',
+    image: 'https://picsum.photos/seed/l7nitro/600/600',
+    stock: 60,
+    rating: 4.9,
+    reviews: 134
+  },
+  {
+    id: 'l7-turbo-500',
+    name: 'L7 TURBO 500mg',
+    price: 159.00,
+    description: 'Equilíbrio perfeito entre energia e queima calórica para o seu dia a dia.',
+    category: 'emagrecedores',
+    image: 'https://picsum.photos/seed/l7turbo/600/600',
+    stock: 80,
+    rating: 4.7,
+    reviews: 115
+  },
+  {
+    id: 'l7-nitro-750-full',
+    name: '1 Kit L7 NITRO 750mg + Detox + Colágeno',
+    price: 239.00,
+    description: 'O combo definitivo: Emagrecimento potente, detoxificação e cuidado com a pele e articulações.',
+    category: 'emagrecedores',
+    image: 'https://picsum.photos/seed/l7nitro-full/600/600',
+    stock: 15,
+    rating: 5.0,
+    reviews: 45
+  },
+  {
+    id: 'l7-turbo-500-full',
+    name: '1 Kit L7 TURBO 500mg + Detox + Colágeno',
+    price: 229.00,
+    description: 'Emagreça com saúde e mantenha a firmeza da pele com este kit completo de L7 Turbo e Colágeno.',
+    category: 'emagrecedores',
+    image: 'https://picsum.photos/seed/l7turbo-full/600/600',
+    stock: 20,
+    rating: 4.9,
+    reviews: 38
   }
 ];
 

@@ -87,12 +87,14 @@ if (productCount.count === 0) {
   const insertProduct = db.prepare("INSERT INTO products (id, name, price, description, category, image, images, stock, rating, reviews) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
   
   const initialProducts = [
-    ['1', 'Whey Protein Isolate - 900g', 189.90, 'Proteína isolada de alta qualidade.', 'suplementos', 'https://picsum.photos/seed/whey/600/600', JSON.stringify(['https://picsum.photos/seed/whey1/600/600', 'https://picsum.photos/seed/whey2/600/600']), 50, 4.9, 128],
-    ['2', 'Creatina Monohidratada - 300g', 99.90, 'Aumento de força e performance.', 'suplementos', 'https://picsum.photos/seed/creatine/600/600', JSON.stringify(['https://picsum.photos/seed/creatine1/600/600']), 30, 4.8, 245],
-    ['3', 'Pré-Treino Explosive - 300g', 129.90, 'Foco mental e energia duradoura.', 'suplementos', 'https://picsum.photos/seed/preworkout/600/600', JSON.stringify([]), 20, 4.7, 89],
-    ['4', 'Coqueteleira Halex Pro', 45.00, 'Design ergonômico e vedação perfeita.', 'acessorios', 'https://picsum.photos/seed/shaker/600/600', JSON.stringify([]), 100, 4.5, 56],
-    ['5', 'BCAA 2:1:1 - 120 Cápsulas', 79.90, 'Aminoácidos essenciais.', 'suplementos', 'https://picsum.photos/seed/bcaa/600/600', JSON.stringify([]), 45, 4.6, 112],
-    ['6', 'Camiseta Oversized Halex Beast', 89.90, 'Conforto e estilo para o treino.', 'vestuario', 'https://picsum.photos/seed/shirt/600/600', JSON.stringify([]), 15, 4.9, 43]
+    ['l7-ultra-450-kit', '1 Kit L7 ULTRA 450mg + Detox', 159.90, 'Combo completo para emagrecimento com L7 Ultra 450mg e Detox para resultados rápidos e naturais.', 'emagrecedores', 'https://picsum.photos/seed/l7ultra-kit/600/600', JSON.stringify(['https://picsum.photos/seed/l7ultra-kit1/600/600']), 50, 4.9, 156],
+    ['l7-turbo-500-kit', 'Kit L7 TURBO 500mg + Detox', 189.90, 'Potencialize sua queima de gordura com o Kit L7 Turbo 500mg e Detox. Energia e saciedade.', 'emagrecedores', 'https://picsum.photos/seed/l7turbo-kit/600/600', JSON.stringify(['https://picsum.photos/seed/l7turbo-kit1/600/600']), 40, 4.8, 92],
+    ['l7-ultra-450', 'L7 Ultra 450mg', 149.00, 'Inibidor de apetite natural com Laranja Moro, L-Carnitina e Psyllium para queima de gordura.', 'emagrecedores', 'https://picsum.photos/seed/l7ultra/600/600', JSON.stringify([]), 100, 4.9, 210],
+    ['l7-nitro-750-kit', 'Kit L7 Nitro 750mg + Detox Shake', 199.90, 'A fórmula mais potente: L7 Nitro 750mg combinada com Detox Shake para resultados máximos.', 'emagrecedores', 'https://picsum.photos/seed/l7nitro-kit/600/600', JSON.stringify([]), 25, 5.0, 78],
+    ['l7-nitro-750', 'L7 NITRO 750mg', 169.00, 'Máxima concentração para queima de gordura abdominal e controle total do apetite.', 'emagrecedores', 'https://picsum.photos/seed/l7nitro/600/600', JSON.stringify([]), 60, 4.9, 134],
+    ['l7-turbo-500', 'L7 TURBO 500mg', 159.00, 'Equilíbrio perfeito entre energia e queima calórica para o seu dia a dia.', 'emagrecedores', 'https://picsum.photos/seed/l7turbo/600/600', JSON.stringify([]), 80, 4.7, 115],
+    ['l7-nitro-750-full', '1 Kit L7 NITRO 750mg + Detox + Colágeno', 239.00, 'O combo definitivo: Emagrecimento potente, detoxificação e cuidado com a pele e articulações.', 'emagrecedores', 'https://picsum.photos/seed/l7nitro-full/600/600', JSON.stringify([]), 15, 5.0, 45],
+    ['l7-turbo-500-full', '1 Kit L7 TURBO 500mg + Detox + Colágeno', 229.00, 'Emagreça com saúde e mantenha a firmeza da pele com este kit completo de L7 Turbo e Colágeno.', 'emagrecedores', 'https://picsum.photos/seed/l7turbo-full/600/600', JSON.stringify([]), 20, 4.9, 38]
   ];
 
   for (const p of initialProducts) {
