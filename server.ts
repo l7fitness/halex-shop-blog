@@ -134,41 +134,50 @@ async function startServer() {
   // API Routes
   // Seed Supabase if empty
   if (supabase) {
-    const { data: existingProducts } = await supabase.from('products').select('id').limit(1);
-    if (!existingProducts || existingProducts.length === 0) {
-      const initialProducts = [
-        { id: 'l7-ultra-450-kit', name: '1 Kit L7 ULTRA 450mg + Detox', price: 159.90, description: 'Combo completo para emagrecimento com L7 Ultra 450mg e Detox para resultados rápidos e naturais.', category: 'emagrecedores', image: 'https://picsum.photos/seed/l7ultra-kit/600/600', images: JSON.stringify(['https://picsum.photos/seed/l7ultra-kit1/600/600']), stock: 50, rating: 4.9, reviews: 156 },
-        { id: 'l7-turbo-500-kit', name: 'Kit L7 TURBO 500mg + Detox', price: 189.90, description: 'Potencialize sua queima de gordura com o Kit L7 Turbo 500mg e Detox. Energia e saciedade.', category: 'emagrecedores', image: 'https://picsum.photos/seed/l7turbo-kit/600/600', images: JSON.stringify(['https://picsum.photos/seed/l7turbo-kit1/600/600']), stock: 40, rating: 4.8, reviews: 92 },
-        { id: 'l7-ultra-450', name: 'L7 Ultra 450mg', price: 149.00, description: 'Inibidor de apetite natural com Laranja Moro, L-Carnitina e Psyllium para queima de gordura.', category: 'emagrecedores', image: 'https://picsum.photos/seed/l7ultra/600/600', images: JSON.stringify([]), stock: 100, rating: 4.9, reviews: 210 },
-        { id: 'l7-nitro-750-kit', name: 'Kit L7 Nitro 750mg + Detox Shake', price: 199.90, description: 'A fórmula mais potente: L7 Nitro 750mg combinada com Detox Shake para resultados máximos.', category: 'emagrecedores', image: 'https://picsum.photos/seed/l7nitro-kit/600/600', images: JSON.stringify([]), stock: 25, rating: 5.0, reviews: 78 },
-        { id: 'l7-nitro-750', name: 'L7 NITRO 750mg', price: 169.00, description: 'Máxima concentração para queima de gordura abdominal e controle total do apetite.', category: 'emagrecedores', image: 'https://picsum.photos/seed/l7nitro/600/600', images: JSON.stringify([]), stock: 60, rating: 4.9, reviews: 134 },
-        { id: 'l7-turbo-500', name: 'L7 TURBO 500mg', price: 159.00, description: 'Equilíbrio perfeito entre energia e queima calórica para o seu dia a dia.', category: 'emagrecedores', image: 'https://picsum.photos/seed/l7turbo/600/600', images: JSON.stringify([]), stock: 80, rating: 4.7, reviews: 115 },
-        { id: 'l7-nitro-750-full', name: '1 Kit L7 NITRO 750mg + Detox + Colágeno', price: 239.00, description: 'O combo definitivo: Emagrecimento potente, detoxificação e cuidado com a pele e articulações.', category: 'emagrecedores', image: 'https://picsum.photos/seed/l7nitro-full/600/600', images: JSON.stringify([]), stock: 15, rating: 5.0, reviews: 45 },
-        { id: 'l7-turbo-500-full', name: '1 Kit L7 TURBO 500mg + Detox + Colágeno', price: 229.00, description: 'Emagreça com saúde e mantenha a firmeza da pele com este kit completo de L7 Turbo e Colágeno.', category: 'emagrecedores', image: 'https://picsum.photos/seed/l7turbo-full/600/600', images: JSON.stringify([]), stock: 20, rating: 4.9, reviews: 38 }
-      ];
-      await supabase.from('products').insert(initialProducts);
-    }
+    try {
+      const { data: existingProducts, error: prodError } = await supabase.from('products').select('id').limit(1);
+      if (!prodError && (!existingProducts || existingProducts.length === 0)) {
+        console.log("Seeding Supabase products...");
+        const initialProducts = [
+          { id: 'l7-ultra-450-kit', name: '1 Kit L7 ULTRA 450mg + Detox', price: 159.90, description: 'Combo completo para emagrecimento com L7 Ultra 450mg e Detox para resultados rápidos e naturais.', category: 'emagrecedores', image: 'https://picsum.photos/seed/l7ultra-kit/600/600', images: JSON.stringify(['https://picsum.photos/seed/l7ultra-kit1/600/600']), stock: 50, rating: 4.9, reviews: 156 },
+          { id: 'l7-turbo-500-kit', name: 'Kit L7 TURBO 500mg + Detox', price: 189.90, description: 'Potencialize sua queima de gordura com o Kit L7 Turbo 500mg e Detox. Energia e saciedade.', category: 'emagrecedores', image: 'https://picsum.photos/seed/l7turbo-kit/600/600', images: JSON.stringify(['https://picsum.photos/seed/l7turbo-kit1/600/600']), stock: 40, rating: 4.8, reviews: 92 },
+          { id: 'l7-ultra-450', name: 'L7 Ultra 450mg', price: 149.00, description: 'Inibidor de apetite natural com Laranja Moro, L-Carnitina e Psyllium para queima de gordura.', category: 'emagrecedores', image: 'https://picsum.photos/seed/l7ultra/600/600', images: JSON.stringify([]), stock: 100, rating: 4.9, reviews: 210 },
+          { id: 'l7-nitro-750-kit', name: 'Kit L7 Nitro 750mg + Detox Shake', price: 199.90, description: 'A fórmula mais potente: L7 Nitro 750mg combinada com Detox Shake para resultados máximos.', category: 'emagrecedores', image: 'https://picsum.photos/seed/l7nitro-kit/600/600', images: JSON.stringify([]), stock: 25, rating: 5.0, reviews: 78 },
+          { id: 'l7-nitro-750', name: 'L7 NITRO 750mg', price: 169.00, description: 'Máxima concentration para queima de gordura abdominal e controle total do apetite.', category: 'emagrecedores', image: 'https://picsum.photos/seed/l7nitro/600/600', images: JSON.stringify([]), stock: 60, rating: 4.9, reviews: 134 },
+          { id: 'l7-turbo-500', name: 'L7 TURBO 500mg', price: 159.00, description: 'Equilíbrio perfeito entre energia e queima calórica para o seu dia a dia.', category: 'emagrecedores', image: 'https://picsum.photos/seed/l7turbo/600/600', images: JSON.stringify([]), stock: 80, rating: 4.7, reviews: 115 },
+          { id: 'l7-nitro-750-full', name: '1 Kit L7 NITRO 750mg + Detox + Colágeno', price: 239.00, description: 'O combo definitivo: Emagrecimento potente, detoxificação e cuidado com a pele e articulações.', category: 'emagrecedores', image: 'https://picsum.photos/seed/l7nitro-full/600/600', images: JSON.stringify([]), stock: 15, rating: 5.0, reviews: 45 },
+          { id: 'l7-turbo-500-full', name: '1 Kit L7 TURBO 500mg + Detox + Colágeno', price: 229.00, description: 'Emagreça com saúde e mantenha a firmeza da pele com este kit completo de L7 Turbo e Colágeno.', category: 'emagrecedores', image: 'https://picsum.photos/seed/l7turbo-full/600/600', images: JSON.stringify([]), stock: 20, rating: 4.9, reviews: 38 }
+        ];
+        await supabase.from('products').insert(initialProducts);
+      }
 
-    const { data: existingPosts } = await supabase.from('posts').select('id').limit(1);
-    if (!existingPosts || existingPosts.length === 0) {
-      const initialPosts = [
-        { id: '1', title: '5 Dicas de Alimentação para Ganho de Massa', excerpt: 'Descubra como estruturar sua dieta.', content: 'Conteúdo completo aqui...', category: 'alimentacao', author: 'Equipe Halex', date: '2024-03-01', image: 'https://picsum.photos/seed/food1/800/400', readTime: '5 min' },
-        { id: '2', title: 'Treino de Pernas: O Guia Definitivo', excerpt: 'Não pule o dia de pernas!', content: 'Conteúdo completo aqui...', category: 'treino', author: 'Coach Halex', date: '2024-02-28', image: 'https://picsum.photos/seed/gym1/800/400', readTime: '8 min' },
-        { id: '3', title: 'Dieta Flexível: Funciona Mesmo?', excerpt: 'Entenda os conceitos da dieta flexível.', content: 'Conteúdo completo aqui...', category: 'dieta', author: 'Nutri Halex', date: '2024-02-25', image: 'https://picsum.photos/seed/diet1/800/400', readTime: '6 min' }
-      ];
-      await supabase.from('posts').insert(initialPosts);
+      const { data: existingPosts, error: postError } = await supabase.from('posts').select('id').limit(1);
+      if (!postError && (!existingPosts || existingPosts.length === 0)) {
+        console.log("Seeding Supabase posts...");
+        const initialPosts = [
+          { id: '1', title: '5 Dicas de Alimentação para Ganho de Massa', excerpt: 'Descubra como estruturar sua dieta.', content: 'Conteúdo completo aqui...', category: 'alimentacao', author: 'Equipe Halex', date: '2024-03-01', image: 'https://picsum.photos/seed/food1/800/400', readTime: '5 min' },
+          { id: '2', title: 'Treino de Pernas: O Guia Definitivo', excerpt: 'Não pule o dia de pernas!', content: 'Conteúdo completo aqui...', category: 'treino', author: 'Coach Halex', date: '2024-02-28', image: 'https://picsum.photos/seed/gym1/800/400', readTime: '8 min' },
+          { id: '3', title: 'Dieta Flexível: Funciona Mesmo?', excerpt: 'Entenda os conceitos da dieta flexível.', content: 'Conteúdo completo aqui...', category: 'dieta', author: 'Nutri Halex', date: '2024-02-25', image: 'https://picsum.photos/seed/diet1/800/400', readTime: '6 min' }
+        ];
+        await supabase.from('posts').insert(initialPosts);
+      }
+    } catch (e) {
+      console.error("Supabase seeding failed (likely tables not created yet):", e);
     }
   }
 
   app.get("/api/products", async (req, res) => {
     if (supabase) {
       const { data, error } = await supabase.from('products').select('*');
-      if (!error && data && data.length > 0) {
+      if (!error && data) {
+        // If Supabase is connected but table is empty, we might want to still check local DB
+        // but for now, if it's connected and returns [], we return []
         return res.json(data.map(p => ({
           ...p,
           images: typeof p.images === 'string' ? JSON.parse(p.images) : (p.images || [])
         })));
       }
+      console.error("Supabase products fetch error:", error);
     }
     
     if (db) {
