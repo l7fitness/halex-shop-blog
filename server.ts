@@ -120,43 +120,43 @@ if (supabase) {
 }
 
 const app = express();
+const PORT = 3000;
 
-async function startServer() {
-  const PORT = 3000;
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-  app.use(express.json({ limit: '50mb' }));
-  app.use(express.urlencoded({ limit: '50mb', extended: true }));
-
-  app.get("/api/health", async (req, res) => {
-    let supabaseProductsCount = 0;
-    let supabaseError = null;
-    
-    if (supabase) {
-      try {
-        const { count, error } = await supabase.from('products').select('*', { count: 'exact', head: true });
-        supabaseProductsCount = count || 0;
-        supabaseError = error;
-      } catch (e: any) {
-        supabaseError = e.message;
-      }
-    }
-
-    res.json({ 
-      status: "ok", 
-      env: process.env.NODE_ENV, 
-      supabase: !!supabase,
-      hasUrl: !!supabaseUrl,
-      hasKey: !!supabaseKey,
-      sqlite: !!db,
-      supabaseProductsCount,
-      supabaseError
-    });
-  });
-
-  // API Routes
-  // Seed Supabase if empty
+app.get("/api/health", async (req, res) => {
+  let supabaseProductsCount = 0;
+  let supabaseError = null;
+  
   if (supabase) {
     try {
+      const { count, error } = await supabase.from('products').select('*', { count: 'exact', head: true });
+      supabaseProductsCount = count || 0;
+      supabaseError = error;
+    } catch (e: any) {
+      supabaseError = e.message;
+    }
+  }
+
+  res.json({ 
+    status: "ok", 
+    env: process.env.NODE_ENV, 
+    supabase: !!supabase,
+    hasUrl: !!supabaseUrl,
+    hasKey: !!supabaseKey,
+    sqlite: !!db,
+    supabaseProductsCount,
+    supabaseError
+  });
+});
+
+
+  // API Routes
+  // Seed Supabase if empty (Async)
+  if (supabase) {
+    (async () => {
+      try {
       const { data: existingProducts, error: prodError } = await supabase.from('products').select('id').limit(1);
       if (!prodError && (!existingProducts || existingProducts.length === 0)) {
         console.log("Seeding Supabase products...");
@@ -186,7 +186,8 @@ async function startServer() {
     } catch (e) {
       console.error("Supabase seeding failed (likely tables not created yet):", e);
     }
-  }
+  })();
+}
 
   app.get("/api/products", async (req, res) => {
     if (supabase) {
@@ -562,12 +563,14 @@ app.post("/api/checkout", async (req, res) => {
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
-    const { createServer: createViteServer } = await import("vite");
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
+    (async () => {
+      const { createServer: createViteServer } = await import("vite");
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+    })();
   } else {
     app.use(express.static(path.join(__dirname, "dist")));
     app.get("*", (req, res, next) => {
@@ -585,8 +588,5 @@ app.post("/api/checkout", async (req, res) => {
       console.log(`Server running on http://localhost:${PORT}`);
     });
   }
-}
-
-startServer();
 
 export default app;

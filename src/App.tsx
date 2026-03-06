@@ -1177,43 +1177,51 @@ const AdminPage = ({ products, posts, orders, onRefresh }: { products: Product[]
                   <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm">
                     <h3 className="text-xl font-black mb-8 uppercase">Vendas nos Últimos 7 Dias</h3>
                     <div className="h-[300px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={metrics.salesChartData}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                          <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#9ca3af'}} dy={10} />
-                          <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#9ca3af'}} />
-                          <Tooltip 
-                            contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                            itemStyle={{ fontWeight: 'bold', color: '#FF6321' }}
-                          />
-                          <Line type="monotone" dataKey="total" stroke="#FF6321" strokeWidth={4} dot={{ r: 6, fill: '#FF6321', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 8 }} />
-                        </LineChart>
-                      </ResponsiveContainer>
+                      {metrics.salesChartData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%" key={`sales-${metrics.salesChartData.length}`}>
+                          <LineChart data={metrics.salesChartData}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                            <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#9ca3af'}} dy={10} />
+                            <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#9ca3af'}} />
+                            <Tooltip 
+                              contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                              itemStyle={{ fontWeight: 'bold', color: '#FF6321' }}
+                            />
+                            <Line type="monotone" dataKey="total" stroke="#FF6321" strokeWidth={4} dot={{ r: 6, fill: '#FF6321', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 8 }} />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-400">Sem dados de vendas</div>
+                      )}
                     </div>
                   </div>
 
                   <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm">
                     <h3 className="text-xl font-black mb-8 uppercase">Vendas por Categoria</h3>
                     <div className="h-[300px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={metrics.categoryChartData}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={60}
-                            outerRadius={100}
-                            paddingAngle={5}
-                            dataKey="value"
-                          >
-                            {metrics.categoryChartData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip />
-                          <Legend verticalAlign="bottom" height={36}/>
-                        </PieChart>
-                      </ResponsiveContainer>
+                      {metrics.categoryChartData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%" key={`cat-${metrics.categoryChartData.length}`}>
+                          <PieChart>
+                            <Pie
+                              data={metrics.categoryChartData}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={60}
+                              outerRadius={100}
+                              paddingAngle={5}
+                              dataKey="value"
+                            >
+                              {metrics.categoryChartData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                              ))}
+                            </Pie>
+                            <Tooltip />
+                            <Legend verticalAlign="bottom" height={36}/>
+                          </PieChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-400">Sem dados de categoria</div>
+                      )}
                     </div>
                   </div>
                 </div>
