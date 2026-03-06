@@ -1390,12 +1390,40 @@ const CheckoutSuccessPage = ({ onContinue }: { onContinue: () => void }) => {
 
 const AuthModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) => {
   const { user } = useAuth();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<'login' | 'signup'>('login');
 
   useEffect(() => {
     if (user) onClose();
   }, [user]);
 
   if (!isOpen) return null;
+
+  const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!supabase) return;
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      if (mode === 'login') {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.auth.signUp({ email, password });
+        if (error) throw error;
+        alert('Verifique seu e-mail para confirmar o cadastro!');
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -1416,48 +1444,61 @@ const AuthModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }
         
         <div className="mb-8">
           <h2 className="text-3xl font-black italic tracking-tighter mb-2">HALEX <span className="text-brand-orange">AUTH</span></h2>
-          <p className="text-gray-500 text-sm">Entre ou crie sua conta para salvar seus favoritos.</p>
+          <p className="text-gray-500 text-sm">
+            {mode === 'login' ? 'Entre na sua conta para continuar.' : 'Crie sua conta para salvar favoritos.'}
+          </p>
         </div>
 
         {supabase ? (
-          <Auth 
-            supabaseClient={supabase} 
-            appearance={{ 
-              theme: ThemeSupa,
-              variables: {
-                default: {
-                  colors: {
-                    brand: '#FF6321',
-                    brandAccent: '#E55210',
-                  }
-                }
-              }
-            }}
-            providers={['google', 'github']}
-            localization={{
-              variables: {
-                sign_in: {
-                  email_label: 'E-mail',
-                  password_label: 'Senha',
-                  button_label: 'Entrar',
-                  loading_button_label: 'Entrando...',
-                  social_provider_text: 'Entrar com {{provider}}',
-                  link_text: 'Já tem uma conta? Entre',
-                },
-                sign_up: {
-                  email_label: 'E-mail',
-                  password_label: 'Senha',
-                  button_label: 'Criar Conta',
-                  loading_button_label: 'Criando...',
-                  social_provider_text: 'Criar com {{provider}}',
-                  link_text: 'Não tem uma conta? Crie agora',
-                }
-              }
-            }}
-          />
+          <form onSubmit={handleAuth} className="space-y-4">
+            {error && (
+              <div className="p-3 bg-red-50 text-red-500 text-xs font-bold rounded-xl">
+                {error}
+              </div>
+            )}
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1 ml-1">E-mail</label>
+              <input 
+                type="email" 
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full p-4 bg-gray-50 rounded-2xl border-none focus:ring-2 focus:ring-brand-orange outline-none font-medium text-sm"
+                placeholder="seu@email.com"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1 ml-1">Senha</label>
+              <input 
+                type="password" 
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full p-4 bg-gray-50 rounded-2xl border-none focus:ring-2 focus:ring-brand-orange outline-none font-medium text-sm"
+                placeholder="••••••••"
+              />
+            </div>
+            <button 
+              type="submit" 
+              disabled={loading}
+              className="w-full btn-primary py-4 text-sm font-bold disabled:opacity-50"
+            >
+              {loading ? 'Processando...' : (mode === 'login' ? 'Entrar' : 'Criar Conta')}
+            </button>
+            
+            <div className="text-center pt-2">
+              <button 
+                type="button"
+                onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
+                className="text-xs text-gray-400 hover:text-brand-orange transition-colors font-bold"
+              >
+                {mode === 'login' ? 'Não tem uma conta? Crie agora' : 'Já tem uma conta? Entre'}
+              </button>
+            </div>
+          </form>
         ) : (
           <div className="p-4 bg-red-50 text-red-500 rounded-2xl text-sm font-bold">
-            Supabase não configurado. Verifique as variáveis de ambiente.
+            Supabase não configurado no servidor.
           </div>
         )}
       </motion.div>
