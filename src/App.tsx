@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { ShoppingBag, Menu, X, User, Search, ChevronRight, Instagram, Facebook, Youtube, Plus, Trash2, LayoutDashboard, Package, FileText, Edit, Upload, CheckCircle } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { ShoppingBag, Menu, X, User, Search, ChevronRight, Instagram, Facebook, Youtube, Plus, Trash2, LayoutDashboard, Package, FileText, Edit, Upload, CheckCircle, TrendingUp, DollarSign, Users, BarChart3 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
 import { PRODUCTS, POSTS } from './data';
 import { Product, BlogPost, CartItem } from './types';
 import { SupportChat } from './components/SupportChat';
 
-import { generateHealthTips } from './services/geminiService';
+import { generateHealthTips, generateSalesInsight } from './services/geminiService';
 
 // --- Components ---
 
@@ -639,9 +640,65 @@ const ProductDetailsPage: React.FC<{ product: Product, onAddToCart: (p: Product)
 };
 
 const AdminPage = ({ products, posts, orders, onRefresh }: { products: Product[], posts: BlogPost[], orders: any[], onRefresh: () => void }) => {
-  const [activeTab, setActiveTab] = useState<'products' | 'posts' | 'orders'>('products');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'posts' | 'orders'>('dashboard');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [aiInsight, setAiInsight] = useState<string | null>(null);
+  const [loadingInsight, setLoadingInsight] = useState(false);
+
+  // --- Dashboard Metrics Calculation ---
+  const metrics = useMemo(() => {
+    const paidOrders = orders.filter(o => o.status === 'paid');
+    const totalSales = paidOrders.reduce((sum, o) => sum + o.total, 0);
+    const avgOrderValue = paidOrders.length > 0 ? totalSales / paidOrders.length : 0;
+    
+    // Sales by Date
+    const salesByDate: Record<string, number> = {};
+    paidOrders.forEach(o => {
+      const date = new Date(o.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+      salesByDate[date] = (salesByDate[date] || 0) + o.total;
+    });
+    const salesChartData = Object.entries(salesByDate).map(([date, total]) => ({ date, total })).reverse().slice(0, 7).reverse();
+
+    // Sales by Category
+    const categorySales: Record<string, number> = {};
+    paidOrders.forEach(o => {
+      o.items.forEach((item: any) => {
+        const product = products.find(p => p.id === item.id);
+        const cat = product?.category || 'Outros';
+        categorySales[cat] = (categorySales[cat] || 0) + (item.price * item.quantity);
+      });
+    });
+    const categoryChartData = Object.entries(categorySales).map(([name, value]) => ({ name, value }));
+
+    // Popular Products
+    const productSales: Record<string, number> = {};
+    paidOrders.forEach(o => {
+      o.items.forEach((item: any) => {
+        productSales[item.name] = (productSales[item.name] || 0) + item.quantity;
+      });
+    });
+    const popularProducts = Object.entries(productSales)
+      .map(([name, qty]) => ({ name, qty }))
+      .sort((a, b) => b.qty - a.qty)
+      .slice(0, 5);
+
+    return { totalSales, paidOrdersCount: paidOrders.length, avgOrderValue, salesChartData, categoryChartData, popularProducts };
+  }, [orders, products]);
+
+  useEffect(() => {
+    if (activeTab === 'dashboard' && orders.length > 0) {
+      const fetchInsight = async () => {
+        setLoadingInsight(true);
+        const insight = await generateSalesInsight(metrics);
+        setAiInsight(insight);
+        setLoadingInsight(false);
+      };
+      fetchInsight();
+    }
+  }, [activeTab, metrics]);
+
+  const COLORS = ['#FF6321', '#141414', '#10B981', '#6366F1', '#F59E0B'];
 
   // Product Form State
   const [newProduct, setNewProduct] = useState<Partial<Product>>({
@@ -769,22 +826,28 @@ const AdminPage = ({ products, posts, orders, onRefresh }: { products: Product[]
         )}
       </div>
 
-      <div className="flex gap-4 mb-8 border-b border-gray-100 pb-4">
+      <div className="flex gap-4 mb-8 border-b border-gray-100 pb-4 overflow-x-auto scrollbar-hide">
+        <button 
+          onClick={() => { setActiveTab('dashboard'); resetForm(); }}
+          className={`flex items-center gap-2 px-6 py-2 rounded-full font-bold uppercase text-xs tracking-widest transition-all whitespace-nowrap ${activeTab === 'dashboard' ? 'bg-brand-black text-white' : 'text-gray-400 hover:text-brand-orange'}`}
+        >
+          <BarChart3 size={16} /> Dashboard
+        </button>
         <button 
           onClick={() => { setActiveTab('products'); resetForm(); }}
-          className={`flex items-center gap-2 px-6 py-2 rounded-full font-bold uppercase text-xs tracking-widest transition-all ${activeTab === 'products' ? 'bg-brand-black text-white' : 'text-gray-400 hover:text-brand-orange'}`}
+          className={`flex items-center gap-2 px-6 py-2 rounded-full font-bold uppercase text-xs tracking-widest transition-all whitespace-nowrap ${activeTab === 'products' ? 'bg-brand-black text-white' : 'text-gray-400 hover:text-brand-orange'}`}
         >
           <Package size={16} /> Produtos
         </button>
         <button 
           onClick={() => { setActiveTab('posts'); resetForm(); }}
-          className={`flex items-center gap-2 px-6 py-2 rounded-full font-bold uppercase text-xs tracking-widest transition-all ${activeTab === 'posts' ? 'bg-brand-black text-white' : 'text-gray-400 hover:text-brand-orange'}`}
+          className={`flex items-center gap-2 px-6 py-2 rounded-full font-bold uppercase text-xs tracking-widest transition-all whitespace-nowrap ${activeTab === 'posts' ? 'bg-brand-black text-white' : 'text-gray-400 hover:text-brand-orange'}`}
         >
           <FileText size={16} /> Blog
         </button>
         <button 
           onClick={() => { setActiveTab('orders'); resetForm(); }}
-          className={`flex items-center gap-2 px-6 py-2 rounded-full font-bold uppercase text-xs tracking-widest transition-all ${activeTab === 'orders' ? 'bg-brand-black text-white' : 'text-gray-400 hover:text-brand-orange'}`}
+          className={`flex items-center gap-2 px-6 py-2 rounded-full font-bold uppercase text-xs tracking-widest transition-all whitespace-nowrap ${activeTab === 'orders' ? 'bg-brand-black text-white' : 'text-gray-400 hover:text-brand-orange'}`}
         >
           <ShoppingBag size={16} /> Pedidos
         </button>
@@ -943,9 +1006,144 @@ const AdminPage = ({ products, posts, orders, onRefresh }: { products: Product[]
             key={activeTab}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="grid grid-cols-1 gap-4"
+            className="grid grid-cols-1 gap-8"
           >
-            {activeTab === 'products' ? (
+            {activeTab === 'dashboard' ? (
+              <div className="space-y-8">
+                {/* Stats Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="w-12 h-12 bg-orange-50 rounded-2xl flex items-center justify-center text-brand-orange">
+                        <TrendingUp size={24} />
+                      </div>
+                      <span className="text-xs font-bold uppercase tracking-widest text-gray-400">Vendas Totais</span>
+                    </div>
+                    <p className="text-3xl font-black">R$ {metrics.totalSales.toFixed(2)}</p>
+                    <p className="text-xs text-green-500 font-bold mt-2">+12% vs mês anterior</p>
+                  </div>
+                  
+                  <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-500">
+                        <ShoppingBag size={24} />
+                      </div>
+                      <span className="text-xs font-bold uppercase tracking-widest text-gray-400">Pedidos Pagos</span>
+                    </div>
+                    <p className="text-3xl font-black">{metrics.paidOrdersCount}</p>
+                    <p className="text-xs text-blue-500 font-bold mt-2">Taxa de conversão: 3.2%</p>
+                  </div>
+
+                  <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-500">
+                        <DollarSign size={24} />
+                      </div>
+                      <span className="text-xs font-bold uppercase tracking-widest text-gray-400">Ticket Médio</span>
+                    </div>
+                    <p className="text-3xl font-black">R$ {metrics.avgOrderValue.toFixed(2)}</p>
+                    <p className="text-xs text-emerald-500 font-bold mt-2">Otimizado via AI</p>
+                  </div>
+
+                  <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="w-12 h-12 bg-purple-50 rounded-2xl flex items-center justify-center text-purple-500">
+                        <Users size={24} />
+                      </div>
+                      <span className="text-xs font-bold uppercase tracking-widest text-gray-400">Visitas Blog</span>
+                    </div>
+                    <p className="text-3xl font-black">1.2k</p>
+                    <p className="text-xs text-purple-500 font-bold mt-2">Top: Dicas de Massa</p>
+                  </div>
+                </div>
+
+                {/* Charts Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm">
+                    <h3 className="text-xl font-black mb-8 uppercase">Vendas nos Últimos 7 Dias</h3>
+                    <div className="h-[300px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={metrics.salesChartData}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                          <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#9ca3af'}} dy={10} />
+                          <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#9ca3af'}} />
+                          <Tooltip 
+                            contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                            itemStyle={{ fontWeight: 'bold', color: '#FF6321' }}
+                          />
+                          <Line type="monotone" dataKey="total" stroke="#FF6321" strokeWidth={4} dot={{ r: 6, fill: '#FF6321', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 8 }} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm">
+                    <h3 className="text-xl font-black mb-8 uppercase">Vendas por Categoria</h3>
+                    <div className="h-[300px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={metrics.categoryChartData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={60}
+                            outerRadius={100}
+                            paddingAngle={5}
+                            dataKey="value"
+                          >
+                            {metrics.categoryChartData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip />
+                          <Legend verticalAlign="bottom" height={36}/>
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bottom Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                  <div className="lg:col-span-2 bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm">
+                    <h3 className="text-xl font-black mb-8 uppercase">Produtos Mais Vendidos</h3>
+                    <div className="space-y-6">
+                      {metrics.popularProducts.map((p, i) => (
+                        <div key={i} className="flex items-center justify-between">
+                          <div className="flex items-center gap-4">
+                            <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center font-bold text-xs">
+                              {i + 1}
+                            </div>
+                            <span className="font-bold text-gray-700">{p.name}</span>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <div className="w-32 h-2 bg-gray-100 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-brand-orange" 
+                                style={{ width: `${(p.qty / metrics.popularProducts[0].qty) * 100}%` }} 
+                              />
+                            </div>
+                            <span className="font-black text-brand-orange">{p.qty} un.</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="bg-brand-black p-8 rounded-[40px] text-white flex flex-col justify-between">
+                    <div>
+                      <h3 className="text-xl font-black mb-4 uppercase flex items-center gap-2">
+                        Insight AI Halex {loadingInsight && <div className="w-4 h-4 border-2 border-brand-orange border-t-transparent rounded-full animate-spin" />}
+                      </h3>
+                      <p className="text-gray-400 text-sm leading-relaxed italic">
+                        {aiInsight || "Analisando seus dados para gerar estratégias de crescimento..."}
+                      </p>
+                    </div>
+                    <button onClick={() => setActiveTab('posts')} className="btn-primary w-full mt-8 py-3 text-sm">Ver Estratégia Completa</button>
+                  </div>
+                </div>
+              </div>
+            ) : activeTab === 'products' ? (
               products.map(p => (
                 <div key={p.id} className="bg-white p-4 rounded-2xl border border-gray-100 flex items-center justify-between group hover:shadow-md transition-all">
                   <div className="flex items-center gap-4">

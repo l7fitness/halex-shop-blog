@@ -32,3 +32,25 @@ export const generateHealthTips = async (goal: string, weight: number, height: n
     return null;
   }
 };
+
+export const generateSalesInsight = async (metrics: any) => {
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: `Analise os seguintes dados de vendas de uma loja fitness (Halex Shop) e forneça um insight estratégico curto (máximo 200 caracteres) em português.
+      Dados:
+      - Vendas Totais: R$ ${metrics.totalSales.toFixed(2)}
+      - Pedidos Pagos: ${metrics.paidOrdersCount}
+      - Ticket Médio: R$ ${metrics.avgOrderValue.toFixed(2)}
+      - Produtos Populares: ${metrics.popularProducts.map((p: any) => `${p.name} (${p.qty} un.)`).join(', ')}
+      - Categorias: ${metrics.categoryChartData.map((c: any) => `${c.name} (R$ ${c.value.toFixed(2)})`).join(', ')}
+      
+      Sugira uma ação prática baseada nesses dados para aumentar o faturamento ou engajamento.`,
+    });
+
+    return response.text || "Continue monitorando suas vendas para obter novos insights.";
+  } catch (error) {
+    console.error("Error generating sales insight:", error);
+    return "Ocorreu um erro ao gerar o insight. Tente novamente mais tarde.";
+  }
+};
