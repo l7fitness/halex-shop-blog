@@ -125,9 +125,11 @@ const Navbar = ({ cartCount, onCartClick, onNavigate }: { cartCount: number, onC
                 </span>
               )}
             </button>
-            <button onClick={() => onNavigate('admin')} className="p-2 text-gray-600 hover:text-brand-orange transition-colors hidden sm:block">
-              <LayoutDashboard size={20} />
-            </button>
+            {user?.email === 'alexdjmp3@gmail.com' && (
+              <button onClick={() => onNavigate('admin')} className="p-2 text-gray-600 hover:text-brand-orange transition-colors hidden sm:block" title="Painel Admin">
+                <LayoutDashboard size={20} />
+              </button>
+            )}
             {user && (
               <button onClick={logout} className="p-2 text-gray-600 hover:text-red-500 transition-colors hidden sm:block" title="Sair">
                 <LogOut size={20} />
@@ -1775,7 +1777,16 @@ function MainApp() {
           )}
           {currentPage === 'admin' && (
             <motion.div key="admin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <AdminPage products={products} posts={posts} orders={orders} onRefresh={fetchData} />
+              {user?.email === 'alexdjmp3@gmail.com' ? (
+                <AdminPage products={products} posts={posts} orders={orders} onRefresh={fetchData} />
+              ) : (
+                <div className="flex flex-col items-center justify-center min-h-[60vh] p-8 text-center">
+                  <X size={64} className="text-red-500 mb-4" />
+                  <h2 className="text-2xl font-black mb-2">Acesso Negado</h2>
+                  <p className="text-gray-500 mb-6">Você não tem permissão para acessar esta página.</p>
+                  <button onClick={() => setCurrentPage('home')} className="btn-primary px-8 py-3">Voltar para Home</button>
+                </div>
+              )}
             </motion.div>
           )}
           {currentPage === 'checkout-success' && (
