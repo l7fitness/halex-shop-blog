@@ -128,7 +128,14 @@ async function startServer() {
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
   app.get("/api/health", (req, res) => {
-    res.json({ status: "ok", env: process.env.NODE_ENV, supabase: !!supabase });
+    res.json({ 
+      status: "ok", 
+      env: process.env.NODE_ENV, 
+      supabase: !!supabase,
+      hasUrl: !!supabaseUrl,
+      hasKey: !!supabaseKey,
+      sqlite: !!db
+    });
   });
 
   // API Routes
@@ -169,15 +176,13 @@ async function startServer() {
   app.get("/api/products", async (req, res) => {
     if (supabase) {
       const { data, error } = await supabase.from('products').select('*');
-      if (!error && data) {
-        // If Supabase is connected but table is empty, we might want to still check local DB
-        // but for now, if it's connected and returns [], we return []
+      if (!error && data && data.length > 0) {
         return res.json(data.map(p => ({
           ...p,
           images: typeof p.images === 'string' ? JSON.parse(p.images) : (p.images || [])
         })));
       }
-      console.error("Supabase products fetch error:", error);
+      if (error) console.error("Supabase products fetch error:", error);
     }
     
     if (db) {
@@ -275,7 +280,8 @@ async function startServer() {
     }
     
     if (supabase) {
-      await supabase.from('products').upsert([productData]);
+      const { error } = await supabase.from('products').upsert([productData]);
+      if (error) console.error("Supabase product upsert error:", error);
     }
     
     res.json({ success: true });
@@ -313,7 +319,8 @@ async function startServer() {
     }
     
     if (supabase) {
-      await supabase.from('products').update(productData).eq('id', req.params.id);
+      const { error } = await supabase.from('products').update(productData).eq('id', req.params.id);
+      if (error) console.error("Supabase product update error:", error);
     }
     
     res.json({ success: true });
