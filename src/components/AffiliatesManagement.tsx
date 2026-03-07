@@ -31,7 +31,7 @@ export const AffiliatesManagement = ({ affiliates, onRefresh }: { affiliates: an
           <input placeholder="Nome" className="p-3 bg-gray-50 rounded-xl" value={newAffiliate.name} onChange={e => setNewAffiliate({...newAffiliate, name: e.target.value})} required />
           <input placeholder="Email" type="email" className="p-3 bg-gray-50 rounded-xl" value={newAffiliate.email} onChange={e => setNewAffiliate({...newAffiliate, email: e.target.value})} required />
           <input placeholder="Código de Referência (ex: nome)" className="p-3 bg-gray-50 rounded-xl" value={newAffiliate.ref_code} onChange={e => setNewAffiliate({...newAffiliate, ref_code: e.target.value})} required />
-          <input placeholder="Comissão (%)" type="number" className="p-3 bg-gray-50 rounded-xl" value={newAffiliate.commission_rate} onChange={e => setNewAffiliate({...newAffiliate, commission_rate: parseFloat(e.target.value)})} required />
+          <input placeholder="Comissão (%)" type="number" className="p-3 bg-gray-50 rounded-xl" value={newAffiliate.commission_rate} onChange={e => setNewAffiliate({...newAffiliate, commission_rate: Number(e.target.value)})} required />
         </div>
         <button type="submit" className="btn-primary flex items-center gap-2"><Plus size={16} /> Adicionar Afiliado</button>
       </form>
