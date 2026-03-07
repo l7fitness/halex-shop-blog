@@ -244,7 +244,7 @@ app.get("/api/health", async (req, res) => {
     if (supabase) {
       const { data, error } = await supabase.from('posts').select('*');
       if (!error && data) {
-        return res.json(data);
+        return res.json(data.map(p => ({ ...p, readTime: p.read_time })));
       }
       if (error) console.error("Supabase posts fetch error:", error);
     }
@@ -352,7 +352,7 @@ app.get("/api/health", async (req, res) => {
   app.post("/api/posts", async (req, res) => {
     console.log("POST /api/posts - req.body:", req.body);
     const { id, title, excerpt, content, category, author, date, image, readTime } = req.body;
-    const postData = { id, title, excerpt, content, category, author, date, image, readTime };
+    const postData = { id, title, excerpt, content, category, author, date, image, read_time: readTime };
     
     try {
       if (db) {
@@ -386,11 +386,11 @@ app.get("/api/health", async (req, res) => {
 
   app.put("/api/posts/:id", async (req, res) => {
     const { title, excerpt, content, category, author, date, image, readTime } = req.body;
-    const postData = { title, excerpt, content, category, author, date, image, readTime };
+    const postData = { title, excerpt, content, category, author, date, image, read_time: readTime };
     
     if (db) {
-      db.prepare("UPDATE posts SET title = ?, excerpt = ?, content = ?, category = ?, author = ?, date = ?, image = ?, readTime = ? WHERE id = ?")
-        .run(postData.title, postData.excerpt, postData.content, postData.category, postData.author, postData.date, postData.image, postData.readTime, req.params.id);
+      db.prepare("UPDATE posts SET title = ?, excerpt = ?, content = ?, category = ?, author = ?, date = ?, image = ?, read_time = ? WHERE id = ?")
+        .run(postData.title, postData.excerpt, postData.content, postData.category, postData.author, postData.date, postData.image, postData.read_time, req.params.id);
     }
     
     if (supabase) {
