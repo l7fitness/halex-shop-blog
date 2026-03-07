@@ -350,19 +350,26 @@ app.get("/api/health", async (req, res) => {
 
   // Admin API - Posts
   app.post("/api/posts", async (req, res) => {
+    console.log("POST /api/posts - req.body:", req.body);
     const { id, title, excerpt, content, category, author, date, image, readTime } = req.body;
     const postData = { id, title, excerpt, content, category, author, date, image, readTime };
     
-    if (db) {
-      db.prepare("INSERT INTO posts (id, title, excerpt, content, category, author, date, image, readTime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
-        .run(id, title, excerpt, content, category, author, date, image, readTime);
+    try {
+      if (db) {
+        db.prepare("INSERT INTO posts (id, title, excerpt, content, category, author, date, image, readTime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+          .run(id, title, excerpt, content, category, author, date, image, readTime);
+      }
+      
+      if (supabase) {
+        const { error } = await supabase.from('posts').upsert([postData]);
+        if (error) throw error;
+      }
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error saving post:", error);
+      res.status(500).json({ success: false, error: "Failed to save post" });
     }
-    
-    if (supabase) {
-      await supabase.from('posts').upsert([postData]);
-    }
-    
-    res.json({ success: true });
   });
 
   app.delete("/api/posts/:id", async (req, res) => {

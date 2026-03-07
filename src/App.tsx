@@ -854,7 +854,7 @@ const AdminPage = ({ products, posts, orders, onRefresh }: { products: Product[]
         body: JSON.stringify(newPost)
       });
     } else {
-      const post = { ...newPost, id: Date.now().toString() };
+      const post = { ...newPost, id: Date.now().toString(), date: new Date().toISOString().split('T')[0] };
       await fetch('/api/posts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
