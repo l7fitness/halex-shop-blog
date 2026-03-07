@@ -1672,6 +1672,14 @@ function MainApp() {
   const [orders, setOrders] = useState<any[]>([]);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get('ref');
+    if (ref) {
+      localStorage.setItem('affiliate_ref', ref);
+    }
+  }, []);
+
   const fetchData = async () => {
     try {
       const timestamp = Date.now();
@@ -1733,6 +1741,7 @@ function MainApp() {
     
     setIsCheckingOut(true);
     try {
+      const affiliateId = localStorage.getItem('affiliate_ref');
       const response = await fetch('/api/checkout', {
         method: 'POST',
         headers: {
@@ -1741,7 +1750,8 @@ function MainApp() {
         body: JSON.stringify({
           items: cart,
           total: cartTotal,
-          customer_email: user?.email || 'guest@example.com'
+          customer_email: user?.email || 'guest@example.com',
+          affiliate_id: affiliateId
         }),
       });
 

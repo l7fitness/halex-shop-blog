@@ -418,7 +418,19 @@ app.get("/api/health", async (req, res) => {
 });
 
 app.post("/api/checkout", async (req, res) => {
-    const { items, total, customer_email } = req.body;
+    const { items, total, customer_email, affiliate_id } = req.body;
+    
+    // Look up affiliate by ref_code
+    let affiliateId = null;
+    if (affiliate_id) {
+      if (supabase) {
+        const { data } = await supabase.from('affiliates').select('id').eq('ref_code', affiliate_id).single();
+        if (data) affiliateId = data.id;
+      } else if (db) {
+        const affiliate = db.prepare("SELECT id FROM affiliates WHERE ref_code = ?").get(affiliate_id);
+        if (affiliate) affiliateId = affiliate.id;
+      }
+    }
     
     // For L7Fitness, we only need the handle (InfiniteTag)
     const rawHandle = process.env.INFINITEPAY_HANDLE || "l7fitness";
@@ -433,12 +445,13 @@ app.post("/api/checkout", async (req, res) => {
       customer_email: customer_email || 'guest@example.com',
       items: JSON.stringify(items),
       total: total,
-      status: 'pending'
+      status: 'pending',
+      affiliate_id: affiliateId
     };
 
     if (db) {
-      db.prepare("INSERT INTO orders (id, order_nsu, customer_email, items, total, status) VALUES (?, ?, ?, ?, ?, ?)").run(
-        orderData.id, orderData.order_nsu, orderData.customer_email, orderData.items, orderData.total, orderData.status
+      db.prepare("INSERT INTO orders (id, order_nsu, customer_email, items, total, status, affiliate_id) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
+        orderData.id, orderData.order_nsu, orderData.customer_email, orderData.items, orderData.total, orderData.status, orderData.affiliate_id
       );
     }
 
