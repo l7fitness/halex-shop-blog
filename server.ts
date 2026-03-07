@@ -555,17 +555,23 @@ app.post("/api/checkout", async (req, res) => {
 
   app.post("/api/affiliates", async (req, res) => {
     const { name, email, ref_code, commission_rate } = req.body;
+    console.log("Creating affiliate:", { name, email, ref_code, commission_rate });
     const id = crypto.randomUUID();
     try {
       if (db) {
         db.prepare("INSERT INTO affiliates (id, name, email, ref_code, commission_rate) VALUES (?, ?, ?, ?, ?)").run(id, name, email, ref_code, commission_rate);
       }
       if (supabase) {
-        await supabase.from('affiliates').insert([{ id, name, email, ref_code, commission_rate }]);
+        const { error } = await supabase.from('affiliates').insert([{ id, name, email, ref_code, commission_rate }]);
+        if (error) {
+          console.error("Supabase error:", error);
+          throw error;
+        }
       }
       res.json({ success: true, id });
     } catch (e) {
-      res.status(400).json({ error: "Error creating affiliate" });
+      console.error("Affiliate creation error:", e);
+      res.status(400).json({ error: "Error creating affiliate", details: e });
     }
   });
 

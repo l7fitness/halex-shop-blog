@@ -930,7 +930,7 @@ const AdminPage = ({ products, posts, orders, onRefresh }: { products: Product[]
           </h1>
           <p className="text-gray-500">Gerencie seus produtos, conteúdo do blog e pedidos.</p>
         </div>
-        {activeTab !== 'orders' && (
+        {activeTab !== 'orders' && activeTab !== 'affiliates' && (
           <button 
             onClick={() => { if(showForm) resetForm(); else setShowForm(true); }}
             className="btn-primary flex items-center gap-2"

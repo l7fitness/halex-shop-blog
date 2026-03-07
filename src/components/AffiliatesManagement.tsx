@@ -6,11 +6,19 @@ export const AffiliatesManagement = ({ affiliates, onRefresh }: { affiliates: an
 
   const handleAddAffiliate = async (e: React.FormEvent) => {
     e.preventDefault();
-    await fetch('/api/affiliates', {
+    const response = await fetch('/api/affiliates', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newAffiliate)
     });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      alert(`Erro ao criar afiliado: ${errorData.error}`);
+      console.error(errorData);
+      return;
+    }
+
     setNewAffiliate({ name: '', email: '', ref_code: '', commission_rate: 10 });
     onRefresh();
   };
