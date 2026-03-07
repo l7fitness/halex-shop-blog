@@ -569,9 +569,9 @@ app.post("/api/checkout", async (req, res) => {
         }
       }
       res.json({ success: true, id });
-    } catch (e) {
+    } catch (e: any) {
       console.error("Affiliate creation error:", e);
-      res.status(400).json({ error: "Error creating affiliate", details: e });
+      res.status(400).json({ error: "Error creating affiliate", details: e.message || e });
     }
   });
 
