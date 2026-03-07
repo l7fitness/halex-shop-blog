@@ -58,6 +58,16 @@ try {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(user_id, item_id, item_type)
     );
+
+    CREATE TABLE IF NOT EXISTS affiliates (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL,
+      whatsapp TEXT,
+      ref_code TEXT NOT NULL UNIQUE,
+      commission_rate REAL DEFAULT 10,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   // Migration: Add missing columns if they don't exist

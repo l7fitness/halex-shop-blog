@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 
 export const AffiliatesManagement = ({ affiliates, onRefresh }: { affiliates: any[], onRefresh: () => void }) => {
-  const [newAffiliate, setNewAffiliate] = useState({ name: '', email: '', ref_code: '', commission_rate: 10 });
+  const [newAffiliate, setNewAffiliate] = useState({ name: '', email: '', whatsapp: '', ref_code: '', commission_rate: 10 });
 
   const handleAddAffiliate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,7 +19,7 @@ export const AffiliatesManagement = ({ affiliates, onRefresh }: { affiliates: an
       return;
     }
 
-    setNewAffiliate({ name: '', email: '', ref_code: '', commission_rate: 10 });
+    setNewAffiliate({ name: '', email: '', whatsapp: '', ref_code: '', commission_rate: 10 });
     onRefresh();
   };
 
@@ -30,6 +30,7 @@ export const AffiliatesManagement = ({ affiliates, onRefresh }: { affiliates: an
         <div className="grid grid-cols-2 gap-4">
           <input placeholder="Nome" className="p-3 bg-gray-50 rounded-xl" value={newAffiliate.name} onChange={e => setNewAffiliate({...newAffiliate, name: e.target.value})} required />
           <input placeholder="Email" type="email" className="p-3 bg-gray-50 rounded-xl" value={newAffiliate.email} onChange={e => setNewAffiliate({...newAffiliate, email: e.target.value})} required />
+          <input placeholder="WhatsApp" type="tel" className="p-3 bg-gray-50 rounded-xl" value={newAffiliate.whatsapp} onChange={e => setNewAffiliate({...newAffiliate, whatsapp: e.target.value})} required />
           <input placeholder="Código de Referência (ex: nome)" className="p-3 bg-gray-50 rounded-xl" value={newAffiliate.ref_code} onChange={e => setNewAffiliate({...newAffiliate, ref_code: e.target.value})} required />
           <input placeholder="Comissão (%)" type="number" className="p-3 bg-gray-50 rounded-xl" value={newAffiliate.commission_rate} onChange={e => setNewAffiliate({...newAffiliate, commission_rate: Number(e.target.value)})} required />
         </div>
