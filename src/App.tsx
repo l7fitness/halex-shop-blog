@@ -8,6 +8,8 @@ import { supabase } from './services/supabaseClient';
 import { PRODUCTS, POSTS } from './data';
 import { Product, BlogPost, CartItem } from './types';
 import { SupportChat } from './components/SupportChat';
+import { AffiliatesManagement } from './components/AffiliatesManagement';
+import { AffiliateDashboard } from './components/AffiliateDashboard';
 
 import { generateHealthTips, generateSalesInsight } from './services/geminiService';
 
@@ -755,11 +757,16 @@ const ProductDetailsPage: React.FC<{ product: Product, onAddToCart: (p: Product)
 };
 
 const AdminPage = ({ products, posts, orders, onRefresh }: { products: Product[], posts: BlogPost[], orders: any[], onRefresh: () => void }) => {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'posts' | 'orders'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'posts' | 'orders' | 'affiliates'>('dashboard');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [aiInsight, setAiInsight] = useState<string | null>(null);
   const [loadingInsight, setLoadingInsight] = useState(false);
+  const [affiliates, setAffiliates] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch('/api/affiliates').then(res => res.json()).then(setAffiliates);
+  }, []);
 
   // --- Dashboard Metrics Calculation ---
   const metrics = useMemo(() => {
@@ -939,6 +946,14 @@ const AdminPage = ({ products, posts, orders, onRefresh }: { products: Product[]
             <Upload size={20} className="rotate-180" /> Atualizar Pedidos
           </button>
         )}
+        {activeTab === 'affiliates' && (
+          <button 
+            onClick={onRefresh}
+            className="btn-secondary border border-gray-200 flex items-center gap-2"
+          >
+            <Upload size={20} className="rotate-180" /> Atualizar
+          </button>
+        )}
       </div>
 
       <div className="flex gap-4 mb-8 border-b border-gray-100 pb-4 overflow-x-auto scrollbar-hide">
@@ -965,6 +980,12 @@ const AdminPage = ({ products, posts, orders, onRefresh }: { products: Product[]
           className={`flex items-center gap-2 px-6 py-2 rounded-full font-bold uppercase text-xs tracking-widest transition-all whitespace-nowrap ${activeTab === 'orders' ? 'bg-brand-black text-white' : 'text-gray-400 hover:text-brand-orange'}`}
         >
           <ShoppingBag size={16} /> Pedidos
+        </button>
+        <button 
+          onClick={() => { setActiveTab('affiliates'); resetForm(); }}
+          className={`flex items-center gap-2 px-6 py-2 rounded-full font-bold uppercase text-xs tracking-widest transition-all whitespace-nowrap ${activeTab === 'affiliates' ? 'bg-brand-black text-white' : 'text-gray-400 hover:text-brand-orange'}`}
+        >
+          <Users size={16} /> Afiliados
         </button>
       </div>
 
@@ -1320,6 +1341,8 @@ const AdminPage = ({ products, posts, orders, onRefresh }: { products: Product[]
                   </div>
                 </div>
               ))
+            ) : activeTab === 'affiliates' ? (
+              <AffiliatesManagement affiliates={affiliates} onRefresh={onRefresh} />
             ) : (
               <div className="space-y-4">
                 {orders.length === 0 ? (
@@ -1671,12 +1694,20 @@ function MainApp() {
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [selectedAffiliateRef, setSelectedAffiliateRef] = useState<string | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const ref = params.get('ref');
     if (ref) {
       localStorage.setItem('affiliate_ref', ref);
+    }
+    
+    // Check for affiliate dashboard route
+    if (window.location.pathname.startsWith('/afiliado/')) {
+      const refCode = window.location.pathname.split('/')[2];
+      setSelectedAffiliateRef(refCode);
+      setCurrentPage('affiliate-dashboard');
     }
   }, []);
 
@@ -1847,6 +1878,11 @@ function MainApp() {
                   <button onClick={() => setCurrentPage('home')} className="btn-primary px-8 py-3">Voltar para Home</button>
                 </div>
               )}
+            </motion.div>
+          )}
+          {currentPage === 'affiliate-dashboard' && selectedAffiliateRef && (
+            <motion.div key="affiliate" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <AffiliateDashboard refCode={selectedAffiliateRef} />
             </motion.div>
           )}
           {currentPage === 'checkout-success' && (

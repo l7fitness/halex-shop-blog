@@ -540,6 +540,57 @@ app.post("/api/checkout", async (req, res) => {
     res.status(200).send("OK");
   });
 
+  // Affiliate API
+  app.get("/api/affiliates", async (req, res) => {
+    if (supabase) {
+      const { data, error } = await supabase.from('affiliates').select('*');
+      if (!error && data) return res.json(data);
+    }
+    if (db) {
+      const affiliates = db.prepare("SELECT * FROM affiliates").all();
+      return res.json(affiliates);
+    }
+    res.json([]);
+  });
+
+  app.post("/api/affiliates", async (req, res) => {
+    const { name, email, ref_code, commission_rate } = req.body;
+    const id = crypto.randomUUID();
+    try {
+      if (db) {
+        db.prepare("INSERT INTO affiliates (id, name, email, ref_code, commission_rate) VALUES (?, ?, ?, ?, ?)").run(id, name, email, ref_code, commission_rate);
+      }
+      if (supabase) {
+        await supabase.from('affiliates').insert([{ id, name, email, ref_code, commission_rate }]);
+      }
+      res.json({ success: true, id });
+    } catch (e) {
+      res.status(400).json({ error: "Error creating affiliate" });
+    }
+  });
+
+  app.get("/api/affiliates/:refCode", async (req, res) => {
+    const { refCode } = req.params;
+    if (supabase) {
+      const { data, error } = await supabase.from('affiliates').select('*').eq('ref_code', refCode).single();
+      if (!error && data) {
+        // Get stats
+        const { data: orders } = await supabase.from('orders').select('total').eq('affiliate_id', data.id);
+        const totalSales = orders?.reduce((acc, o) => acc + o.total, 0) || 0;
+        return res.json({ ...data, totalSales });
+      }
+    }
+    if (db) {
+      const affiliate = db.prepare("SELECT * FROM affiliates WHERE ref_code = ?").get(refCode);
+      if (affiliate) {
+        const orders = db.prepare("SELECT total FROM orders WHERE affiliate_id = ?").all(affiliate.id);
+        const totalSales = orders.reduce((acc, o) => acc + o.total, 0);
+        return res.json({ ...affiliate, totalSales });
+      }
+    }
+    res.status(404).json({ error: "Affiliate not found" });
+  });
+
   // Favorites API
   app.get("/api/favorites/:userId", async (req, res) => {
     const { userId } = req.params;
