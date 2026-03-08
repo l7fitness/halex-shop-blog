@@ -361,7 +361,7 @@ app.get("/api/health", async (req, res) => {
   // Admin API - Posts
   app.post("/api/posts", async (req, res) => {
     console.log("POST /api/posts - req.body:", req.body);
-    const { id, title, excerpt, content, category, author, date, image, read_time } = req.body;
+    const { id, title, excerpt, content, category, author, date, image, readtime } = req.body;
     
     // Ensure we have a unique ID
     const postId = id || crypto.randomUUID();
@@ -375,7 +375,7 @@ app.get("/api/health", async (req, res) => {
       author: author || 'Equipe Halex', 
       date: date || new Date().toISOString().split('T')[0], 
       image: image, 
-      readTime: read_time || '5 min'
+      readtime: readtime || '5 min'
     };
     
     console.log("Creating post in Supabase:", postData);

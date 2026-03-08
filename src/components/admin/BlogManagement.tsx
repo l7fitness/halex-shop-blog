@@ -3,7 +3,7 @@ import { Plus, Edit2, Save, X, Trash2, FileText } from 'lucide-react';
 
 export const BlogManagement = ({ posts, onRefresh }: { posts: any[], onRefresh: () => void }) => {
   const [activeTab, setActiveTab] = useState<'list' | 'create'>('list');
-  const [newPost, setNewPost] = useState({ title: '', excerpt: '', content: '', category: 'alimentacao', author: 'Equipe Halex', image: '', read_time: '5 min' });
+  const [newPost, setNewPost] = useState({ title: '', excerpt: '', content: '', category: 'alimentacao', author: 'Equipe Halex', image: '', readtime: '5 min' });
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const handleSavePost = async (e: React.FormEvent) => {
@@ -11,13 +11,10 @@ export const BlogManagement = ({ posts, onRefresh }: { posts: any[], onRefresh: 
     const url = editingId ? `/api/posts/${editingId}` : '/api/posts';
     const method = editingId ? 'PUT' : 'POST';
     
-    // Map read_time back to readTime if needed by backend, or just send read_time
-    const postData = { ...newPost, readTime: newPost.read_time };
-    
     const response = await fetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(postData)
+      body: JSON.stringify(newPost)
     });
     
     if (!response.ok) {
@@ -27,7 +24,7 @@ export const BlogManagement = ({ posts, onRefresh }: { posts: any[], onRefresh: 
     }
 
     alert(`Post ${editingId ? 'atualizado' : 'criado'} com sucesso!`);
-    setNewPost({ title: '', excerpt: '', content: '', category: 'alimentacao', author: 'Equipe Halex', image: '', read_time: '5 min' });
+    setNewPost({ title: '', excerpt: '', content: '', category: 'alimentacao', author: 'Equipe Halex', image: '', readtime: '5 min' });
     setEditingId(null);
     onRefresh();
     setActiveTab('list');
@@ -54,7 +51,7 @@ export const BlogManagement = ({ posts, onRefresh }: { posts: any[], onRefresh: 
           <textarea placeholder="Conteúdo" className="w-full p-4 bg-gray-50 rounded-xl border h-40" value={newPost.content} onChange={e => setNewPost({...newPost, content: e.target.value})} required />
           <div className="grid grid-cols-2 gap-4">
             <input placeholder="Categoria" className="p-4 bg-gray-50 rounded-xl border" value={newPost.category} onChange={e => setNewPost({...newPost, category: e.target.value})} />
-            <input placeholder="Tempo de Leitura (ex: 5 min)" className="p-4 bg-gray-50 rounded-xl border" value={newPost.read_time} onChange={e => setNewPost({...newPost, read_time: e.target.value})} />
+            <input placeholder="Tempo de Leitura (ex: 5 min)" className="p-4 bg-gray-50 rounded-xl border" value={newPost.readtime} onChange={e => setNewPost({...newPost, readtime: e.target.value})} />
           </div>
           <input placeholder="Imagem URL" className="w-full p-4 bg-gray-50 rounded-xl border" value={newPost.image} onChange={e => setNewPost({...newPost, image: e.target.value})} />
           <button type="submit" className="btn-primary px-8 py-3 flex items-center gap-2"><Save size={20} /> Salvar Post</button>
