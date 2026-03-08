@@ -375,7 +375,7 @@ app.get("/api/health", async (req, res) => {
       author: author || 'Equipe Halex', 
       date: date || new Date().toISOString().split('T')[0], 
       image: image, 
-      read_time: read_time || '5 min'
+      readTime: read_time || '5 min'
     };
     
     console.log("Creating post in Supabase:", postData);
