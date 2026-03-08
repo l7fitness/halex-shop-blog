@@ -564,8 +564,11 @@ app.post("/api/checkout", async (req, res) => {
   });
 
   app.post("/api/affiliates", async (req, res) => {
-    const { name, email, ref_code, commission_rate } = req.body;
-    const affiliateData = { 
+    const { name, email, whatsapp, ref_code, commission_rate } = req.body;
+    
+    // Only include whatsapp if it's provided and we assume the column exists.
+    // If you haven't created the column in Supabase yet, remove 'whatsapp' from this object.
+    const affiliateData: any = { 
       id: crypto.randomUUID(),
       name, 
       email, 
@@ -573,25 +576,22 @@ app.post("/api/checkout", async (req, res) => {
       commission_rate: Number(commission_rate) 
     };
     
-    console.log("Creating affiliate:", affiliateData);
+    if (whatsapp) {
+      affiliateData.whatsapp = whatsapp;
+    }
+    
+    console.log("Creating affiliate in Supabase:", affiliateData);
     
     try {
-      if (db) {
-        db.prepare("INSERT INTO affiliates (id, name, email, ref_code, commission_rate) VALUES (?, ?, ?, ?, ?)").run(
-          affiliateData.id, affiliateData.name, affiliateData.email, affiliateData.ref_code, affiliateData.commission_rate
-        );
-      }
-      if (supabase) {
-        const { data, error } = await supabase
-          .from('affiliates')
-          .insert([affiliateData])
-          .select();
+      if (!supabase) throw new Error("Supabase not configured");
+
+      const { data, error } = await supabase
+        .from('affiliates')
+        .insert([affiliateData])
+        .select();
           
-        if (error) {
-          console.error("Supabase error:", error);
-          throw error;
-        }
-      }
+      if (error) throw error;
+      
       res.json({ success: true, id: affiliateData.id });
     } catch (e: any) {
       console.error("Affiliate creation error:", e);
@@ -602,18 +602,24 @@ app.post("/api/checkout", async (req, res) => {
   app.patch("/api/affiliates/:id", async (req, res) => {
     const { id } = req.params;
     const { whatsapp, commission_rate } = req.body;
+    
+    const updateData: any = { commission_rate: Number(commission_rate) };
+    if (whatsapp) updateData.whatsapp = whatsapp;
+
     try {
-      if (db) {
-        db.prepare("UPDATE affiliates SET whatsapp = ?, commission_rate = ? WHERE id = ?").run(whatsapp, commission_rate, id);
-      }
-      if (supabase) {
-        const { error } = await supabase.from('affiliates').update({ whatsapp, commission_rate }).eq('id', id);
-        if (error) throw error;
-      }
+      if (!supabase) throw new Error("Supabase not configured");
+
+      const { error } = await supabase
+        .from('affiliates')
+        .update(updateData)
+        .eq('id', id);
+        
+      if (error) throw error;
+      
       res.json({ success: true });
     } catch (e: any) {
       console.error("Affiliate update error:", e);
-      res.status(400).json({ error: "Error updating affiliate", details: e.message || e });
+      res.status(400).json({ error: e.message || "Error updating affiliate" });
     }
   });
 
