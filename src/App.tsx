@@ -849,7 +849,7 @@ const AdminPage = ({ products, posts, orders, onRefresh }: { products: Product[]
       });
     }
     resetForm();
-    onRefresh();
+    await onRefresh();
   };
 
   const handleAddPost = async (e: React.FormEvent) => {
@@ -862,14 +862,20 @@ const AdminPage = ({ products, posts, orders, onRefresh }: { products: Product[]
       });
     } else {
       const post = { ...newPost, id: Date.now().toString(), date: new Date().toISOString().split('T')[0] };
-      await fetch('/api/posts', {
+      const response = await fetch('/api/posts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(post)
       });
+      if (!response.ok) {
+        const errorData = await response.json();
+        alert(`Erro ao criar post: ${errorData.error}`);
+        return;
+      }
     }
     resetForm();
-    onRefresh();
+    await onRefresh();
+    alert('Post criado com sucesso!');
   };
 
   const resetForm = () => {
