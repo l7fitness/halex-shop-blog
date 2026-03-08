@@ -8,7 +8,9 @@ import { supabase } from './services/supabaseClient';
 import { PRODUCTS, POSTS } from './data';
 import { Product, BlogPost, CartItem } from './types';
 import { SupportChat } from './components/SupportChat';
-import { AffiliatesManagement } from './components/AffiliatesManagement';
+import { AffiliatesManagement } from './components/admin/AffiliatesManagement';
+import { BlogManagement } from './components/admin/BlogManagement';
+import { ProductManagement } from './components/admin/ProductManagement';
 import { AffiliateDashboard } from './components/AffiliateDashboard';
 
 import { generateHealthTips, generateSalesInsight } from './services/geminiService';

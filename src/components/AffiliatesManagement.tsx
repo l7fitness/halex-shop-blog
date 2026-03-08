@@ -5,7 +5,7 @@ export const AffiliatesManagement = ({ affiliates, onRefresh }: { affiliates: an
   const [activeTab, setActiveTab] = useState<'list' | 'create'>('list');
   const [newAffiliate, setNewAffiliate] = useState({ name: '', email: '', whatsapp: '', ref_code: '', commission_rate: 10 });
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editData, setEditData] = useState({ whatsapp: '', commission_rate: 10 });
+  const [editData, setEditData] = useState({ name: '', email: '', whatsapp: '', commission_rate: 10 });
 
   const handleAddAffiliate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,11 +87,17 @@ export const AffiliatesManagement = ({ affiliates, onRefresh }: { affiliates: an
             {affiliates.map(a => (
               <div key={a.id} className="flex justify-between items-center p-5 bg-gray-50 rounded-2xl border border-gray-100">
                 {editingId === a.id ? (
-                  <div className="flex gap-3 items-center w-full">
-                    <input className="p-2 rounded-lg border" value={editData.whatsapp} onChange={e => setEditData({...editData, whatsapp: e.target.value})} />
-                    <input type="number" className="p-2 rounded-lg border w-20" value={editData.commission_rate} onChange={e => setEditData({...editData, commission_rate: Number(e.target.value)})} />
-                    <button onClick={() => handleUpdateAffiliate(a.id)} className="bg-green-500 text-white p-2 rounded-lg"><Save size={18} /></button>
-                    <button onClick={() => setEditingId(null)} className="bg-red-500 text-white p-2 rounded-lg"><X size={18} /></button>
+                  <div className="flex flex-col gap-3 w-full">
+                    <div className="grid grid-cols-2 gap-3">
+                      <input className="p-2 rounded-lg border" placeholder="Nome" value={editData.name} onChange={e => setEditData({...editData, name: e.target.value})} />
+                      <input className="p-2 rounded-lg border" placeholder="Email" value={editData.email} onChange={e => setEditData({...editData, email: e.target.value})} />
+                      <input className="p-2 rounded-lg border" placeholder="WhatsApp" value={editData.whatsapp} onChange={e => setEditData({...editData, whatsapp: e.target.value})} />
+                      <input type="number" className="p-2 rounded-lg border" placeholder="Comissão (%)" value={editData.commission_rate} onChange={e => setEditData({...editData, commission_rate: Number(e.target.value)})} />
+                    </div>
+                    <div className="flex gap-3">
+                      <button onClick={() => handleUpdateAffiliate(a.id)} className="bg-green-500 text-white p-2 rounded-lg flex-1 flex items-center justify-center gap-2"><Save size={18} /> Salvar</button>
+                      <button onClick={() => setEditingId(null)} className="bg-red-500 text-white p-2 rounded-lg flex-1 flex items-center justify-center gap-2"><X size={18} /> Cancelar</button>
+                    </div>
                   </div>
                 ) : (
                   <div className="flex justify-between w-full items-center">
@@ -101,7 +107,7 @@ export const AffiliatesManagement = ({ affiliates, onRefresh }: { affiliates: an
                     </div>
                     <div className="flex items-center gap-6">
                       <p className="font-bold text-xl text-brand-orange">{a.commission_rate}%</p>
-                      <button onClick={() => { setEditingId(a.id); setEditData({ whatsapp: a.whatsapp, commission_rate: a.commission_rate }); }} className="text-gray-400 hover:text-brand-orange transition-colors">
+                      <button onClick={() => { setEditingId(a.id); setEditData({ name: a.name, email: a.email, whatsapp: a.whatsapp, commission_rate: a.commission_rate }); }} className="text-gray-400 hover:text-brand-orange transition-colors">
                         <Edit2 size={18} />
                       </button>
                     </div>

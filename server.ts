@@ -616,10 +616,14 @@ app.post("/api/checkout", async (req, res) => {
 
   app.patch("/api/affiliates/:id", async (req, res) => {
     const { id } = req.params;
-    const { whatsapp, commission_rate } = req.body;
+    const { name, email, whatsapp, commission_rate } = req.body;
     
-    const updateData: any = { commission_rate: Number(commission_rate) };
-    if (whatsapp) updateData.whatsapp = whatsapp;
+    const updateData: any = { 
+      name,
+      email,
+      whatsapp,
+      commission_rate: Number(commission_rate) 
+    };
 
     try {
       if (!supabase) throw new Error("Supabase not configured");
