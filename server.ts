@@ -362,23 +362,38 @@ app.get("/api/health", async (req, res) => {
   app.post("/api/posts", async (req, res) => {
     console.log("POST /api/posts - req.body:", req.body);
     const { id, title, excerpt, content, category, author, date, image, readTime } = req.body;
-    const postData = { id, title, excerpt, content, category, author, date, image, read_time: readTime };
+    
+    // Ensure we have a unique ID
+    const postId = id || crypto.randomUUID();
+    
+    const postData = { 
+      id: postId, 
+      title, 
+      excerpt, 
+      content, 
+      category, 
+      author: author || 'Equipe Halex', 
+      date: date || new Date().toISOString().split('T')[0], 
+      image_url: image, 
+      time_to_read: readTime || '5 min'
+    };
+    
+    console.log("Creating post in Supabase:", postData);
     
     try {
-      if (db) {
-        db.prepare("INSERT INTO posts (id, title, excerpt, content, category, author, date, image, readTime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
-          .run(id, title, excerpt, content, category, author, date, image, readTime);
-      }
+      if (!supabase) throw new Error("Supabase not configured");
+
+      const { data, error } = await supabase
+        .from('posts')
+        .insert([postData])
+        .select();
+          
+      if (error) throw error;
       
-      if (supabase) {
-        const { error } = await supabase.from('posts').upsert([postData]);
-        if (error) throw error;
-      }
-      
-      res.json({ success: true });
-    } catch (error) {
-      console.error("Error saving post:", error);
-      res.status(500).json({ success: false, error: "Failed to save post" });
+      res.json({ success: true, id: postId });
+    } catch (e: any) {
+      console.error("Post creation error:", e);
+      res.status(400).json({ error: e.message || "Error creating post" });
     }
   });
 
