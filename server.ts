@@ -4,16 +4,7 @@ import Database from "better-sqlite3";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createClient } from "@supabase/supabase-js";
-import nodemailer from "nodemailer";
-
-const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST,
-  port: parseInt(process.env.EMAIL_PORT || "587"),
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
+import { enviarEmail } from "./mailer";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -410,29 +401,31 @@ app.get("/api/health", async (req, res) => {
     }
   });
 
-  // Admin API - Affiliates
-  app.post("/api/affiliates", async (req, res) => {
-    const { name, email, whatsapp, ref_code } = req.body;
-    // Basic anti-spam: check if email already exists
-    const existing = db.prepare("SELECT * FROM affiliates WHERE email = ?").get(email);
-    if (existing) return res.status(400).json({ error: "Email já cadastrado" });
-
-    const id = crypto.randomUUID();
-    db.prepare("INSERT INTO affiliates (id, name, email, whatsapp, ref_code, status) VALUES (?, ?, ?, ?, ?, 'pending')").run(id, name, email, whatsapp, ref_code);
-    
-    // Send email to admin
+  // Email API
+  app.post("/api/enviar-email", async (req, res) => {
+    const { to, subject, html } = req.body;
     try {
-      await transporter.sendMail({
-        from: process.env.EMAIL_USER,
-        to: process.env.EMAIL_USER,
-        subject: "Novo Afiliado Pendente",
-        text: `Novo afiliado: ${name} (${email}) aguardando aprovação.`
-      });
-    } catch (e) {
-      console.error("Email error:", e);
+      await enviarEmail(to, subject, html);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Falha ao enviar e-mail" });
     }
+  });
+
+  app.post("/api/contato", async (req, res) => {
+    const { nome, email, mensagem } = req.body;
+    if (!nome || !email || !mensagem) return res.status(400).json({ success: false, error: "Campos obrigatórios" });
     
-    res.json({ success: true });
+    try {
+      // Email para admin
+      await enviarEmail("contato@mail.l7fitness.com.br", "Novo contato do site", `<p>Nome: ${nome}</p><p>Email: ${email}</p><p>Mensagem: ${mensagem}</p>`);
+      // Email para cliente
+      await enviarEmail(email, "Recebemos sua mensagem", `<p>Olá ${nome}, recebemos sua mensagem e entraremos em contato em breve.</p>`);
+      
+      res.json({ success: true, message: "Mensagem enviada com sucesso!" });
+    } catch (error) {
+      res.status(500).json({ success: false, error: "Falha ao enviar mensagem" });
+    }
   });
 
   app.get("/api/admin/affiliates", async (req, res) => {
@@ -647,37 +640,61 @@ app.post("/api/checkout", async (req, res) => {
   app.post("/api/affiliates", async (req, res) => {
     const { name, email, whatsapp, ref_code, commission_rate } = req.body;
     
-    // Only include whatsapp if it's provided and we assume the column exists.
-    // If you haven't created the column in Supabase yet, remove 'whatsapp' from this object.
+    // Basic anti-spam: check if email already exists
+    if (!supabase) return res.status(500).json({ error: "Supabase not configured" });
+    const { data: existing } = await supabase.from('affiliates').select('*').eq('email', email).single();
+    if (existing) return res.status(400).json({ error: "Email já cadastrado" });
+
     const affiliateData: any = { 
       id: crypto.randomUUID(),
       name, 
       email, 
       ref_code, 
-      commission_rate: Number(commission_rate) 
+      commission_rate: Number(commission_rate) || 10,
+      status: 'pending'
     };
     
-    if (whatsapp) {
-      affiliateData.whatsapp = whatsapp;
-    }
+    if (whatsapp) affiliateData.whatsapp = whatsapp;
     
-    console.log("Creating affiliate in Supabase:", affiliateData);
+    const { error } = await supabase.from('affiliates').insert([affiliateData]);
+    if (error) return res.status(400).json({ error: error.message });
     
+    // Send email to admin
     try {
-      if (!supabase) throw new Error("Supabase not configured");
-
-      const { data, error } = await supabase
-        .from('affiliates')
-        .insert([affiliateData])
-        .select();
-          
-      if (error) throw error;
-      
-      res.json({ success: true, id: affiliateData.id });
-    } catch (e: any) {
-      console.error("Affiliate creation error:", e);
-      res.status(400).json({ error: e.message || "Error creating affiliate" });
+      await enviarEmail(process.env.EMAIL_USER || 'admin@l7fitness.com.br', "Novo Afiliado Pendente", `Novo afiliado: ${name} (${email}) aguardando aprovação.`);
+    } catch (e) {
+      console.error("Email error:", e);
     }
+    
+    res.json({ success: true });
+  });
+
+  app.get("/api/admin/affiliates", async (req, res) => {
+    if (!supabase) return res.status(500).json({ error: "Supabase not configured" });
+    const { data, error } = await supabase.from('affiliates').select('*').eq('status', 'pending');
+    if (error) return res.status(400).json({ error: error.message });
+    res.json(data);
+  });
+
+  app.post("/api/admin/affiliates/:id/approve", async (req, res) => {
+    const { id } = req.params;
+    const { status } = req.body; // 'approved' or 'rejected'
+    if (!supabase) return res.status(500).json({ error: "Supabase not configured" });
+    
+    const { error } = await supabase.from('affiliates').update({ status }).eq('id', id);
+    if (error) return res.status(400).json({ error: error.message });
+    
+    // Send email to affiliate
+    const { data: affiliate } = await supabase.from('affiliates').select('*').eq('id', id).single();
+    if (affiliate) {
+      try {
+        await enviarEmail(affiliate.email, `Sua afiliação foi ${status === 'approved' ? 'aprovada' : 'rejeitada'}`, `Olá ${affiliate.name}, sua solicitação de afiliação foi ${status}.`);
+      } catch (e) {
+        console.error("Email error:", e);
+      }
+    }
+    
+    res.json({ success: true });
   });
 
   app.patch("/api/affiliates/:id", async (req, res) => {
