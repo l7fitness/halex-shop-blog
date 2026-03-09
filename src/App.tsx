@@ -1562,8 +1562,8 @@ const ProfileModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => voi
 
   useEffect(() => {
     if (isOpen) {
-      fetch('/api/products').then(res => res.json()).then(setProducts);
-      fetch('/api/posts').then(res => res.json()).then(setPosts);
+      fetch('/api/products').then(res => res.json()).then(data => setProducts(data.products));
+      fetch('/api/posts').then(res => res.json()).then(data => setPosts(data.posts));
       if (user) {
         fetch(`/api/orders/${user.email}`).then(res => res.json()).then(setUserOrders);
       }
@@ -1743,9 +1743,9 @@ function MainApp() {
       const prodData = await prodRes.json();
       const postData = await postRes.json();
       const orderData = await orderRes.json();
-      setProducts(prodData);
-      setPosts(postData);
-      setOrders(orderData);
+      setProducts(prodData.products);
+      setPosts(postData.posts);
+      setOrders(orderData.orders);
     } catch (error) {
       console.error("Error fetching data:", error);
     }

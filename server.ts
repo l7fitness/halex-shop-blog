@@ -219,103 +219,86 @@ app.get("/api/health", async (req, res) => {
 }
 
   app.get("/api/products", async (req, res) => {
-    if (supabase) {
-      const { data, error } = await supabase.from('products').select('*, product_categories(category_id)');
-      if (!error && data) {
-        return res.json(data.map(p => ({
+    try {
+      let products: any[] = [];
+      if (supabase) {
+        const { data, error } = await supabase.from('products').select('*, product_categories(category_id)');
+        if (error) throw error;
+        products = (data || []).map(p => ({
           ...p,
           images: typeof p.images === 'string' ? JSON.parse(p.images) : (p.images || []),
           categories: (p.product_categories || []).map((pc: any) => pc.category_id)
-        })));
+        }));
+      } else if (db) {
+        const dbProducts = db.prepare("SELECT * FROM products").all() as any[];
+        const productCategories = db.prepare("SELECT * FROM product_categories").all() as any[];
+        products = dbProducts.map(p => ({
+          ...p,
+          images: p.images ? JSON.parse(p.images) : [],
+          categories: productCategories.filter(pc => pc.product_id === p.id).map(pc => pc.category_id)
+        }));
       }
-      if (error) console.error("Supabase products fetch error:", error);
+      res.json({ products });
+    } catch (error) {
+      console.error("Error in GET /api/products:", error);
+      res.status(500).json({ error: "Failed to fetch products" });
     }
-    
-    if (db) {
-      const products = db.prepare("SELECT * FROM products").all() as any[];
-      const productCategories = db.prepare("SELECT * FROM product_categories").all() as any[];
-      const formattedProducts = products.map(p => ({
-        ...p,
-        images: p.images ? JSON.parse(p.images) : [],
-        categories: productCategories.filter(pc => pc.product_id === p.id).map(pc => pc.category_id)
-      }));
-      return res.json(formattedProducts);
-    }
-    res.json([]);
-  });
-
-  app.get("/api/products/:id", async (req, res) => {
-    if (supabase) {
-      const { data, error } = await supabase.from('products').select('*').eq('id', req.params.id).single();
-      if (!error && data) {
-        return res.json({
-          ...data,
-          images: typeof data.images === 'string' ? JSON.parse(data.images) : (data.images || [])
-        });
-      }
-    }
-
-    if (db) {
-      const product = db.prepare("SELECT * FROM products WHERE id = ?").get(req.params.id) as any;
-      if (product) {
-        return res.json({
-          ...product,
-          images: product.images ? JSON.parse(product.images) : []
-        });
-      }
-    }
-    res.status(404).json({ error: "Product not found" });
   });
 
   app.get("/api/posts", async (req, res) => {
-    if (supabase) {
-      const { data, error } = await supabase.from('posts').select('*');
-      if (!error && data) {
-        return res.json(data.map(p => ({ ...p, readTime: p.read_time })));
+    try {
+      let posts: any[] = [];
+      if (supabase) {
+        const { data, error } = await supabase.from('posts').select('*');
+        if (error) throw error;
+        posts = (data || []).map(p => ({ ...p, readTime: p.read_time }));
+      } else if (db) {
+        posts = db.prepare("SELECT * FROM posts").all();
       }
-      if (error) console.error("Supabase posts fetch error:", error);
+      res.json({ posts });
+    } catch (error) {
+      console.error("Error in GET /api/posts:", error);
+      res.status(500).json({ error: "Failed to fetch posts" });
     }
-    if (db) {
-      const posts = db.prepare("SELECT * FROM posts").all();
-      return res.json(posts);
-    }
-    res.json([]);
   });
-
-  app.get("/api/posts/:id", async (req, res) => {
-    if (supabase) {
-      const { data, error } = await supabase.from('posts').select('*').eq('id', req.params.id).single();
-      if (!error && data) {
-        return res.json(data);
+    try {
+      let posts: any[] = [];
+      if (supabase) {
+        const { data, error } = await supabase.from('posts').select('*');
+        if (error) throw error;
+        posts = (data || []).map(p => ({ ...p, readTime: p.read_time }));
+      } else if (db) {
+        posts = db.prepare("SELECT * FROM posts").all();
       }
+      res.json({ posts });
+    } catch (error) {
+      console.error("Error in GET /api/posts:", error);
+      res.status(500).json({ error: "Failed to fetch posts" });
     }
-    if (db) {
-      const post = db.prepare("SELECT * FROM posts WHERE id = ?").get(req.params.id);
-      if (post) {
-        return res.json(post);
-      }
-    }
-    res.status(404).json({ error: "Post not found" });
   });
 
   app.get("/api/orders", async (req, res) => {
-    if (supabase) {
-      const { data, error } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
-      if (!error && data) {
-        return res.json(data.map(o => ({
+    try {
+      let orders: any[] = [];
+      if (supabase) {
+        const { data, error } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
+        if (error) throw error;
+        orders = (data || []).map(o => ({
           ...o,
           items: typeof o.items === 'string' ? JSON.parse(o.items) : o.items
-        })));
+        }));
+      } else if (db) {
+        const dbOrders = db.prepare("SELECT * FROM orders ORDER BY created_at DESC").all() as any[];
+        orders = dbOrders.map(o => ({
+          ...o,
+          items: JSON.parse(o.items)
+        }));
       }
+      res.json({ orders });
+    } catch (error) {
+      console.error("Error in GET /api/orders:", error);
+      res.status(500).json({ error: "Failed to fetch orders" });
     }
-    if (db) {
-      const orders = db.prepare("SELECT * FROM orders ORDER BY created_at DESC").all() as any[];
-      return res.json(orders.map(o => ({
-        ...o,
-        items: JSON.parse(o.items)
-      })));
-    }
-    res.json([]);
   });
 
   // Admin API - Products
