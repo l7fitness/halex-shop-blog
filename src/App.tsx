@@ -25,7 +25,13 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     if (supabase) {
-      supabase.auth.getSession().then(({ data: { session } }) => {
+      supabase.auth.getSession().then(({ data: { session }, error }) => {
+        if (error) {
+           console.error("Auth error:", error);
+           if (error.message.includes("Invalid Refresh Token")) {
+             supabase.auth.signOut();
+           }
+        }
         setUser(session?.user ?? null);
       });
 
@@ -1748,12 +1754,18 @@ function MainApp() {
         fetch(`/api/posts?t=${timestamp}`),
         fetch(`/api/orders?t=${timestamp}`)
       ]);
+      
+      if (!prodRes.ok || !postRes.ok || !orderRes.ok) {
+        throw new Error('Failed to fetch data');
+      }
+
       const prodData = await prodRes.json();
       const postData = await postRes.json();
       const orderData = await orderRes.json();
-      setProducts(prodData.products);
-      setPosts(postData.posts);
-      setOrders(orderData.orders);
+      
+      setProducts(prodData.products || []);
+      setPosts(postData.posts || []);
+      setOrders(orderData.orders || []);
     } catch (error) {
       console.error("Error fetching data:", error);
     }
