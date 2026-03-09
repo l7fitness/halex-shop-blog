@@ -4,6 +4,16 @@ import Database from "better-sqlite3";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createClient } from "@supabase/supabase-js";
+import nodemailer from "nodemailer";
+
+const transporter = nodemailer.createTransport({
+  host: process.env.EMAIL_HOST,
+  port: parseInt(process.env.EMAIL_PORT || "587"),
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -76,6 +86,9 @@ try {
   } catch (e) {}
   try {
     db.exec("ALTER TABLE products ADD COLUMN stock INTEGER DEFAULT 0");
+  } catch (e) {}
+  try {
+    db.exec("ALTER TABLE affiliates ADD COLUMN status TEXT DEFAULT 'pending'");
   } catch (e) {}
 
   // Seed initial data if empty
@@ -395,6 +408,59 @@ app.get("/api/health", async (req, res) => {
       console.error("Post creation error:", e);
       res.status(400).json({ error: e.message || "Error creating post" });
     }
+  });
+
+  // Admin API - Affiliates
+  app.post("/api/affiliates", async (req, res) => {
+    const { name, email, whatsapp, ref_code } = req.body;
+    // Basic anti-spam: check if email already exists
+    const existing = db.prepare("SELECT * FROM affiliates WHERE email = ?").get(email);
+    if (existing) return res.status(400).json({ error: "Email já cadastrado" });
+
+    const id = crypto.randomUUID();
+    db.prepare("INSERT INTO affiliates (id, name, email, whatsapp, ref_code, status) VALUES (?, ?, ?, ?, ?, 'pending')").run(id, name, email, whatsapp, ref_code);
+    
+    // Send email to admin
+    try {
+      await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: process.env.EMAIL_USER,
+        subject: "Novo Afiliado Pendente",
+        text: `Novo afiliado: ${name} (${email}) aguardando aprovação.`
+      });
+    } catch (e) {
+      console.error("Email error:", e);
+    }
+    
+    res.json({ success: true });
+  });
+
+  app.get("/api/admin/affiliates", async (req, res) => {
+    const affiliates = db.prepare("SELECT * FROM affiliates WHERE status = 'pending'").all();
+    res.json(affiliates);
+  });
+
+  app.post("/api/admin/affiliates/:id/approve", async (req, res) => {
+    const { id } = req.params;
+    const { status } = req.body; // 'approved' or 'rejected'
+    db.prepare("UPDATE affiliates SET status = ? WHERE id = ?").run(status, id);
+    
+    // Send email to affiliate
+    const affiliate = db.prepare("SELECT * FROM affiliates WHERE id = ?").get(id);
+    if (affiliate) {
+      try {
+        await transporter.sendMail({
+          from: process.env.EMAIL_USER,
+          to: affiliate.email,
+          subject: `Sua afiliação foi ${status === 'approved' ? 'aprovada' : 'rejeitada'}`,
+          text: `Olá ${affiliate.name}, sua solicitação de afiliação foi ${status}.`
+        });
+      } catch (e) {
+        console.error("Email error:", e);
+      }
+    }
+    
+    res.json({ success: true });
   });
 
   app.delete("/api/posts/:id", async (req, res) => {
