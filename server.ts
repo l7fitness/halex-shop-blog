@@ -261,21 +261,6 @@ app.get("/api/health", async (req, res) => {
       res.status(500).json({ error: "Failed to fetch posts" });
     }
   });
-    try {
-      let posts: any[] = [];
-      if (supabase) {
-        const { data, error } = await supabase.from('posts').select('*');
-        if (error) throw error;
-        posts = (data || []).map(p => ({ ...p, readTime: p.read_time }));
-      } else if (db) {
-        posts = db.prepare("SELECT * FROM posts").all();
-      }
-      res.json({ posts });
-    } catch (error) {
-      console.error("Error in GET /api/posts:", error);
-      res.status(500).json({ error: "Failed to fetch posts" });
-    }
-  });
 
   app.get("/api/orders", async (req, res) => {
     try {
