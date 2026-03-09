@@ -225,7 +225,7 @@ app.get("/api/health", async (req, res) => {
         return res.json(data.map(p => ({
           ...p,
           images: typeof p.images === 'string' ? JSON.parse(p.images) : (p.images || []),
-          categories: p.product_categories.map((pc: any) => pc.category_id)
+          categories: (p.product_categories || []).map((pc: any) => pc.category_id)
         })));
       }
       if (error) console.error("Supabase products fetch error:", error);
