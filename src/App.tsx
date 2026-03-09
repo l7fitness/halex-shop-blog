@@ -992,6 +992,12 @@ const AdminPage = ({ products, posts, orders, onRefresh }: { products: Product[]
           <FileText size={16} /> Blog
         </button>
         <button 
+          onClick={() => { setActiveTab('categories'); resetForm(); }}
+          className={`flex items-center gap-2 px-6 py-2 rounded-full font-bold uppercase text-xs tracking-widest transition-all whitespace-nowrap ${activeTab === 'categories' ? 'bg-brand-black text-white' : 'text-gray-400 hover:text-brand-orange'}`}
+        >
+          <Tag size={16} /> Categorias
+        </button>
+        <button 
           onClick={() => { setActiveTab('orders'); resetForm(); }}
           className={`flex items-center gap-2 px-6 py-2 rounded-full font-bold uppercase text-xs tracking-widest transition-all whitespace-nowrap ${activeTab === 'orders' ? 'bg-brand-black text-white' : 'text-gray-400 hover:text-brand-orange'}`}
         >
@@ -1331,6 +1337,8 @@ const AdminPage = ({ products, posts, orders, onRefresh }: { products: Product[]
                   </div>
                 </div>
               ))
+            ) : activeTab === 'categories' ? (
+              <CategoryManagement onRefresh={onRefresh} />
             ) : activeTab === 'posts' ? (
               posts.map(p => (
                 <div key={p.id} className="bg-white p-4 rounded-2xl border border-gray-100 flex items-center justify-between group hover:shadow-md transition-all">
