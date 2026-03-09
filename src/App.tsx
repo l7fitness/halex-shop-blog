@@ -11,6 +11,7 @@ import { SupportChat } from './components/SupportChat';
 import { AffiliatesManagement } from './components/AffiliatesManagement';
 import { BlogManagement } from './components/admin/BlogManagement';
 import { ProductManagement } from './components/admin/ProductManagement';
+import { CategoryManagement } from './components/admin/CategoryManagement';
 import { AffiliateDashboard } from './components/AffiliateDashboard';
 
 import { generateHealthTips, generateSalesInsight } from './services/geminiService';
@@ -642,7 +643,7 @@ const TipsPage = () => {
   );
 };
 
-const ProductDetailsPage: React.FC<{ product: Product, onAddToCart: (p: Product) => void, onBack: () => void }> = ({ product, onAddToCart, onBack }) => {
+const ProductDetailsPage: React.FC<{ product: Product, onAddToCart: (p: Product) => void, onBack: () => void, onNavigate: (page: string) => void, onShowToast: (msg: string) => void }> = ({ product, onAddToCart, onBack, onNavigate, onShowToast }) => {
   const [activeImage, setActiveImage] = useState(product.image);
   const allImages = [product.image, ...(product.images || [])];
 
@@ -730,11 +731,18 @@ const ProductDetailsPage: React.FC<{ product: Product, onAddToCart: (p: Product)
 
           <div className="flex gap-4">
             <button 
-              onClick={() => onAddToCart(product)}
+              onClick={() => { onAddToCart(product); onShowToast('Adicionado ao carrinho!'); }}
               disabled={product.stock <= 0}
-              className="flex-grow btn-primary py-5 text-xl flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-grow bg-brand-orange text-white py-5 text-xl font-bold rounded-2xl flex items-center justify-center gap-3 hover:bg-brand-orange/90 transition-all disabled:opacity-50"
             >
-              <ShoppingBag size={24} /> {product.stock > 0 ? 'Adicionar ao Carrinho' : 'Indisponível'}
+              <ShoppingBag size={24} /> Adicionar ao Carrinho
+            </button>
+            <button 
+              onClick={() => { onAddToCart(product); onNavigate('cart'); }}
+              disabled={product.stock <= 0}
+              className="flex-grow bg-brand-black text-white py-5 text-xl font-bold rounded-2xl flex items-center justify-center gap-3 hover:bg-black transition-all disabled:opacity-50"
+            >
+              Comprar Agora
             </button>
           </div>
 
@@ -759,7 +767,7 @@ const ProductDetailsPage: React.FC<{ product: Product, onAddToCart: (p: Product)
 };
 
 const AdminPage = ({ products, posts, orders, onRefresh }: { products: Product[], posts: BlogPost[], orders: any[], onRefresh: () => void }) => {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'posts' | 'orders' | 'affiliates'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'posts' | 'orders' | 'affiliates' | 'categories'>('dashboard');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [aiInsight, setAiInsight] = useState<string | null>(null);
@@ -1694,6 +1702,11 @@ export default function App() {
 function MainApp() {
   const { user } = useAuth();
   const [currentPage, setCurrentPage] = useState('home');
+  const [toast, setToast] = useState<string | null>(null);
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  };
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -1761,6 +1774,14 @@ function MainApp() {
 
   const removeFromCart = (id: string) => {
     setCart(prev => prev.filter(item => item.id !== id));
+  };
+
+  const updateQuantity = (id: string, quantity: number) => {
+    if (quantity <= 0) {
+      removeFromCart(id);
+      return;
+    }
+    setCart(prev => prev.map(item => item.id === id ? { ...item, quantity } : item));
   };
 
   const handleProductClick = (product: Product) => {
@@ -1844,6 +1865,8 @@ function MainApp() {
                     product={product} 
                     onAddToCart={addToCart} 
                     onBack={() => setCurrentPage('store')} 
+                    onNavigate={setCurrentPage}
+                    onShowToast={showToast}
                   />
                 );
               })()}
@@ -1947,11 +1970,15 @@ function MainApp() {
                       </div>
                       <div className="flex-grow">
                         <h4 className="font-bold text-sm mb-1">{item.name}</h4>
-                        <p className="text-xs text-gray-500 mb-2">Qtd: {item.quantity}</p>
                         <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="p-1 rounded-full bg-gray-100 hover:bg-gray-200">-</button>
+                            <span className="font-bold">{item.quantity}</span>
+                            <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="p-1 rounded-full bg-gray-100 hover:bg-gray-200">+</button>
+                          </div>
                           <span className="font-bold text-brand-orange">R$ {(item.price * item.quantity).toFixed(2)}</span>
-                          <button onClick={() => removeFromCart(item.id)} className="text-xs text-red-500 hover:underline">Remover</button>
                         </div>
+                        <button onClick={() => removeFromCart(item.id)} className="text-xs text-red-500 hover:underline mt-2">Remover</button>
                       </div>
                     </div>
                   ))
@@ -1960,8 +1987,8 @@ function MainApp() {
               
               {cart.length > 0 && (
                 <div className="p-6 border-t border-gray-100 bg-gray-50">
-                  <div className="flex items-center justify-between mb-6">
-                    <span className="text-gray-500 font-medium">Total</span>
+                  <div className="flex justify-between items-center mb-4">
+                    <span className="font-bold">Total ({cart.reduce((sum, item) => sum + item.quantity, 0)} itens)</span>
                     <span className="text-2xl font-black">R$ {cartTotal.toFixed(2)}</span>
                   </div>
                   <button 
@@ -1982,6 +2009,18 @@ function MainApp() {
               )}
             </motion.div>
           </>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {toast && (
+          <motion.div 
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className="fixed bottom-8 right-8 bg-brand-black text-white px-6 py-3 rounded-full shadow-xl z-[100]"
+          >
+            {toast}
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

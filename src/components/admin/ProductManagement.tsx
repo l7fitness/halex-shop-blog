@@ -1,10 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Save, X, Trash2, ShoppingBag } from 'lucide-react';
+import { Category } from '../../types';
 
 export const ProductManagement = ({ products, onRefresh }: { products: any[], onRefresh: () => void }) => {
   const [activeTab, setActiveTab] = useState<'list' | 'create'>('list');
-  const [newProduct, setNewProduct] = useState({ name: '', price: 0, description: '', category: 'suplementos', image: '', stock: 0 });
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [newProduct, setNewProduct] = useState({ name: '', price: 0, description: '', categories: [] as string[], image: '', stock: 0 });
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api/categories').then(res => res.json()).then(setCategories);
+  }, []);
 
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,7 +29,7 @@ export const ProductManagement = ({ products, onRefresh }: { products: any[], on
     }
 
     alert(`Produto ${editingId ? 'atualizado' : 'criado'} com sucesso!`);
-    setNewProduct({ name: '', price: 0, description: '', category: 'suplementos', image: '', stock: 0 });
+    setNewProduct({ name: '', price: 0, description: '', categories: [], image: '', stock: 0 });
     setEditingId(null);
     onRefresh();
     setActiveTab('list');
@@ -39,7 +45,7 @@ export const ProductManagement = ({ products, onRefresh }: { products: any[], on
     <div className="space-y-6">
       <div className="flex gap-2 bg-gray-100 p-1 rounded-full w-fit">
         <button onClick={() => setActiveTab('list')} className={`flex items-center gap-2 px-6 py-2 rounded-full font-bold transition-all ${activeTab === 'list' ? 'bg-white shadow-sm' : 'text-gray-500'}`}><ShoppingBag size={18} /> Produtos</button>
-        <button onClick={() => { setActiveTab('create'); setEditingId(null); }} className={`flex items-center gap-2 px-6 py-2 rounded-full font-bold transition-all ${activeTab === 'create' ? 'bg-white shadow-sm' : 'text-gray-500'}`}><Plus size={18} /> Novo Produto</button>
+        <button onClick={() => { setActiveTab('create'); setEditingId(null); setNewProduct({ name: '', price: 0, description: '', categories: [], image: '', stock: 0 }); }} className={`flex items-center gap-2 px-6 py-2 rounded-full font-bold transition-all ${activeTab === 'create' ? 'bg-white shadow-sm' : 'text-gray-500'}`}><Plus size={18} /> Novo Produto</button>
       </div>
 
       {activeTab === 'create' ? (
@@ -52,6 +58,31 @@ export const ProductManagement = ({ products, onRefresh }: { products: any[], on
           </div>
           <textarea placeholder="Descrição" className="w-full p-4 bg-gray-50 rounded-xl border h-32" value={newProduct.description} onChange={e => setNewProduct({...newProduct, description: e.target.value})} />
           <input placeholder="Imagem URL" className="w-full p-4 bg-gray-50 rounded-xl border" value={newProduct.image} onChange={e => setNewProduct({...newProduct, image: e.target.value})} />
+          
+          <div>
+            <label className="block text-sm font-bold mb-2">Categorias</label>
+            <div className="flex flex-wrap gap-2">
+              {categories.map(cat => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => {
+                    const isSelected = newProduct.categories.includes(cat.id);
+                    setNewProduct({
+                      ...newProduct,
+                      categories: isSelected 
+                        ? newProduct.categories.filter(id => id !== cat.id)
+                        : [...newProduct.categories, cat.id]
+                    });
+                  }}
+                  className={`px-4 py-2 rounded-full text-sm font-bold transition-all ${newProduct.categories.includes(cat.id) ? 'bg-brand-orange text-white' : 'bg-gray-100 text-gray-500'}`}
+                >
+                  {cat.name}
+                </button>
+              ))}
+            </div>
+          </div>
+          
           <button type="submit" className="btn-primary px-8 py-3 flex items-center gap-2"><Save size={20} /> Salvar Produto</button>
         </form>
       ) : (

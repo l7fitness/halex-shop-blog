@@ -60,6 +60,21 @@ try {
       UNIQUE(user_id, item_id, item_type)
     );
 
+    CREATE TABLE IF NOT EXISTS categories (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      color TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS product_categories (
+      product_id TEXT NOT NULL,
+      category_id TEXT NOT NULL,
+      PRIMARY KEY (product_id, category_id),
+      FOREIGN KEY (product_id) REFERENCES products(id),
+      FOREIGN KEY (category_id) REFERENCES categories(id)
+    );
+
     CREATE TABLE IF NOT EXISTS affiliates (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -205,26 +220,24 @@ app.get("/api/health", async (req, res) => {
 
   app.get("/api/products", async (req, res) => {
     if (supabase) {
-      const { data, error } = await supabase.from('products').select('*');
+      const { data, error } = await supabase.from('products').select('*, product_categories(category_id)');
       if (!error && data) {
-        return res.json(data.map(p => {
-          let images = [];
-          try {
-            images = typeof p.images === 'string' ? JSON.parse(p.images) : (p.images || []);
-          } catch (e) {
-            images = [];
-          }
-          return { ...p, images };
-        }));
+        return res.json(data.map(p => ({
+          ...p,
+          images: typeof p.images === 'string' ? JSON.parse(p.images) : (p.images || []),
+          categories: p.product_categories.map((pc: any) => pc.category_id)
+        })));
       }
       if (error) console.error("Supabase products fetch error:", error);
     }
     
     if (db) {
       const products = db.prepare("SELECT * FROM products").all() as any[];
+      const productCategories = db.prepare("SELECT * FROM product_categories").all() as any[];
       const formattedProducts = products.map(p => ({
         ...p,
-        images: p.images ? JSON.parse(p.images) : []
+        images: p.images ? JSON.parse(p.images) : [],
+        categories: productCategories.filter(pc => pc.product_id === p.id).map(pc => pc.category_id)
       }));
       return res.json(formattedProducts);
     }
@@ -307,41 +320,94 @@ app.get("/api/health", async (req, res) => {
 
   // Admin API - Products
   app.post("/api/products", async (req, res) => {
-    const { id, name, price, description, category, image, images, stock, rating, reviews } = req.body;
-    const productData = { id, name, price, description, category, image, images: JSON.stringify(images || []), stock: stock || 0, rating: rating || 5, reviews: reviews || 0 };
+    const { id, name, price, description, categories, image, images, stock, rating, reviews } = req.body;
+    const productId = id || crypto.randomUUID();
+    const productData = { id: productId, name, price, description, image, images: JSON.stringify(images || []), stock: stock || 0, rating: rating || 5, reviews: reviews || 0 };
     
     if (db) {
-      db.prepare("INSERT INTO products (id, name, price, description, category, image, images, stock, rating, reviews) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-        .run(id, name, price, description, category, image, productData.images, productData.stock, productData.rating, productData.reviews);
+      db.prepare("INSERT INTO products (id, name, price, description, image, images, stock, rating, reviews) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .run(productId, name, price, description, productData.image, productData.images, productData.stock, productData.rating, productData.reviews);
+      
+      if (categories) {
+        const insertCategory = db.prepare("INSERT INTO product_categories (product_id, category_id) VALUES (?, ?)");
+        for (const catId of categories) {
+          insertCategory.run(productId, catId);
+        }
+      }
     }
     
     if (supabase) {
       const { error } = await supabase.from('products').upsert([productData]);
       if (error) console.error("Supabase product upsert error:", error);
+      
+      if (categories) {
+        await supabase.from('product_categories').insert(categories.map((catId: string) => ({ product_id: productId, category_id: catId })));
+      }
     }
     
-    res.json({ success: true });
+    res.json({ success: true, id: productId });
   });
 
   app.delete("/api/products/:id", async (req, res) => {
     if (db) {
       db.prepare("DELETE FROM products WHERE id = ?").run(req.params.id);
+      db.prepare("DELETE FROM product_categories WHERE product_id = ?").run(req.params.id);
     }
     
     if (supabase) {
+      await supabase.from('product_categories').delete().eq('product_id', req.params.id);
       await supabase.from('products').delete().eq('id', req.params.id);
+    }
+    
+    res.json({ success: true });
+  });
+    if (supabase) {
+      const { data, error } = await supabase.from('categories').select('*');
+      if (!error && data) return res.json(data);
+    }
+    if (db) {
+      const categories = db.prepare("SELECT * FROM categories").all();
+      return res.json(categories);
+    }
+    res.json([]);
+  });
+
+  app.post("/api/categories", async (req, res) => {
+    const { id, name, description, color } = req.body;
+    const categoryId = id || crypto.randomUUID();
+    
+    if (db) {
+      db.prepare("INSERT INTO categories (id, name, description, color) VALUES (?, ?, ?, ?)")
+        .run(categoryId, name, description, color);
+    }
+    
+    if (supabase) {
+      await supabase.from('categories').insert([{ id: categoryId, name, description, color }]);
+    }
+    
+    res.json({ success: true, id: categoryId });
+  });
+
+  app.delete("/api/categories/:id", async (req, res) => {
+    if (db) {
+      db.prepare("DELETE FROM categories WHERE id = ?").run(req.params.id);
+      db.prepare("DELETE FROM product_categories WHERE category_id = ?").run(req.params.id);
+    }
+    
+    if (supabase) {
+      await supabase.from('product_categories').delete().eq('category_id', req.params.id);
+      await supabase.from('categories').delete().eq('id', req.params.id);
     }
     
     res.json({ success: true });
   });
 
   app.put("/api/products/:id", async (req, res) => {
-    const { name, price, description, category, image, images, stock, rating, reviews } = req.body;
+    const { name, price, description, categories, image, images, stock, rating, reviews } = req.body;
     const productData = { 
       name, 
       price, 
       description, 
-      category, 
       image, 
       images: typeof images === 'string' ? images : JSON.stringify(images || []), 
       stock: stock || 0, 
@@ -350,13 +416,26 @@ app.get("/api/health", async (req, res) => {
     };
     
     if (db) {
-      db.prepare("UPDATE products SET name = ?, price = ?, description = ?, category = ?, image = ?, images = ?, stock = ?, rating = ?, reviews = ? WHERE id = ?")
-        .run(productData.name, productData.price, productData.description, productData.category, productData.image, productData.images, productData.stock, productData.rating, productData.reviews, req.params.id);
+      db.prepare("UPDATE products SET name = ?, price = ?, description = ?, image = ?, images = ?, stock = ?, rating = ?, reviews = ? WHERE id = ?")
+        .run(productData.name, productData.price, productData.description, productData.image, productData.images, productData.stock, productData.rating, productData.reviews, req.params.id);
+      
+      db.prepare("DELETE FROM product_categories WHERE product_id = ?").run(req.params.id);
+      if (categories) {
+        const insertCategory = db.prepare("INSERT INTO product_categories (product_id, category_id) VALUES (?, ?)");
+        for (const catId of categories) {
+          insertCategory.run(req.params.id, catId);
+        }
+      }
     }
     
     if (supabase) {
       const { error } = await supabase.from('products').update(productData).eq('id', req.params.id);
       if (error) console.error("Supabase product update error:", error);
+      
+      await supabase.from('product_categories').delete().eq('product_id', req.params.id);
+      if (categories) {
+        await supabase.from('product_categories').insert(categories.map((catId: string) => ({ product_id: req.params.id, category_id: catId })));
+      }
     }
     
     res.json({ success: true });
@@ -442,12 +521,7 @@ app.get("/api/health", async (req, res) => {
     const affiliate = db.prepare("SELECT * FROM affiliates WHERE id = ?").get(id);
     if (affiliate) {
       try {
-        await transporter.sendMail({
-          from: process.env.EMAIL_USER,
-          to: affiliate.email,
-          subject: `Sua afiliação foi ${status === 'approved' ? 'aprovada' : 'rejeitada'}`,
-          text: `Olá ${affiliate.name}, sua solicitação de afiliação foi ${status}.`
-        });
+        await enviarEmail(affiliate.email, `Sua afiliação foi ${status === 'approved' ? 'aprovada' : 'rejeitada'}`, `Olá ${affiliate.name}, sua solicitação de afiliação foi ${status}.`);
       } catch (e) {
         console.error("Email error:", e);
       }

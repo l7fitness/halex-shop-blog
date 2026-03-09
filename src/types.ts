@@ -3,12 +3,19 @@ export interface Product {
   name: string;
   price: number;
   description: string;
-  category: 'suplementos' | 'acessorios' | 'vestuario' | 'emagrecedores';
+  categories: string[];
   image: string;
   images?: string[];
   stock: number;
   rating: number;
   reviews: number;
+}
+
+export interface Category {
+  id: string;
+  name: string;
+  description?: string;
+  color?: string;
 }
 
 export interface BlogPost {
