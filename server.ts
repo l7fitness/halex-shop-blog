@@ -5,13 +5,23 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { createClient } from "@supabase/supabase-js";
 import { enviarEmail } from "./mailer";
+import crypto from "crypto";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
 let db: any;
 try {
-  const dbPath = process.env.VERCEL ? "/tmp/halex.db" : "halex.db";
+  const dbPath = process.env.VERCEL ? "/tmp/halex.db" : path.join(__dirname, "halex.db");
+  console.log(`Initializing SQLite at: ${dbPath}`);
   db = new Database(dbPath);
   
   // Initialize Database Tables
@@ -38,7 +48,7 @@ try {
       author TEXT,
       date TEXT,
       image TEXT,
-      readTime TEXT
+      read_time TEXT
     );
 
     CREATE TABLE IF NOT EXISTS orders (
@@ -96,9 +106,32 @@ try {
   try {
     db.exec("ALTER TABLE affiliates ADD COLUMN status TEXT DEFAULT 'pending'");
   } catch (e) {}
+  try {
+    db.exec("ALTER TABLE orders ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP");
+  } catch (e) {}
+  try {
+    db.exec("ALTER TABLE posts ADD COLUMN read_time TEXT");
+  } catch (e) {}
+  try {
+    db.exec("ALTER TABLE products ADD COLUMN rating REAL");
+  } catch (e) {}
+  try {
+    db.exec("ALTER TABLE products ADD COLUMN reviews INTEGER");
+  } catch (e) {}
 
   // Seed initial data if empty
-  const productCount = db.prepare("SELECT count(*) as count FROM products").get() as { count: number };
+  if (db) {
+    try {
+      db.prepare("SELECT 1").get();
+      console.log("SQLite connection verified.");
+    } catch (e) {
+      console.error("SQLite connection verification failed:", e);
+      db = null;
+    }
+  }
+
+  if (db) {
+    const productCount = db.prepare("SELECT count(*) as count FROM products").get() as { count: number };
   if (productCount.count === 0) {
     const insertProduct = db.prepare("INSERT INTO products (id, name, price, description, category, image, images, stock, rating, reviews) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
     
@@ -129,7 +162,11 @@ try {
     ];
 
     for (const p of initialPosts) {
-      insertPost.run(...p);
+      try {
+        insertPost.run(...p);
+      } catch (e) {
+        console.warn("Failed to seed post:", p[0], e);
+      }
     }
   }
 } catch (e) {
@@ -258,21 +295,31 @@ app.get("/api/health", async (req, res) => {
       }
 
       if (!usedSupabase && db) {
-        const dbProducts = db.prepare("SELECT * FROM products").all() as any[];
-        const productCategories = db.prepare("SELECT * FROM product_categories").all() as any[];
-        products = dbProducts.map(p => {
-          let images = [];
+        try {
+          const dbProducts = db.prepare("SELECT * FROM products").all() as any[];
+          let productCategories: any[] = [];
           try {
-            images = p.images ? JSON.parse(p.images) : [];
+            productCategories = db.prepare("SELECT * FROM product_categories").all() as any[];
           } catch (e) {
-            console.warn(`Failed to parse images for product ${p.id} from SQLite:`, e);
+            console.warn("product_categories table might be missing in SQLite");
           }
-          return {
-            ...p,
-            images,
-            categories: productCategories.filter(pc => pc.product_id === p.id).map(pc => pc.category_id)
-          };
-        });
+          
+          products = dbProducts.map(p => {
+            let images = [];
+            try {
+              images = p.images ? JSON.parse(p.images) : [];
+            } catch (e) {
+              console.warn(`Failed to parse images for product ${p.id} from SQLite:`, e);
+            }
+            return {
+              ...p,
+              images,
+              categories: productCategories.filter(pc => pc.product_id === p.id).map(pc => pc.category_id)
+            };
+          });
+        } catch (sqliteError) {
+          console.error("SQLite products fetch failed:", sqliteError);
+        }
       }
       res.json({ products });
     } catch (error) {
@@ -298,7 +345,12 @@ app.get("/api/health", async (req, res) => {
       }
 
       if (!usedSupabase && db) {
-        posts = db.prepare("SELECT * FROM posts").all();
+        try {
+          posts = db.prepare("SELECT * FROM posts").all();
+          posts = posts.map(p => ({ ...p, readTime: p.read_time || p.readTime }));
+        } catch (sqliteError) {
+          console.error("SQLite posts fetch failed:", sqliteError);
+        }
       }
       res.json({ posts });
     } catch (error) {
@@ -332,16 +384,33 @@ app.get("/api/health", async (req, res) => {
       }
 
       if (!usedSupabase && db) {
-        const dbOrders = db.prepare("SELECT * FROM orders ORDER BY created_at DESC").all() as any[];
-        orders = dbOrders.map(o => {
-          let items = [];
+        try {
+          const dbOrders = db.prepare("SELECT * FROM orders ORDER BY created_at DESC").all() as any[];
+          orders = dbOrders.map(o => {
+            let items = [];
+            try {
+              items = o.items ? JSON.parse(o.items) : [];
+            } catch (e) {
+              console.warn(`Failed to parse items for order ${o.id} from SQLite:`, e);
+            }
+            return { ...o, items };
+          });
+        } catch (sqliteError) {
+          console.error("SQLite orders fetch failed:", sqliteError);
+          // Try without ORDER BY if it fails (might be missing column)
           try {
-            items = o.items ? JSON.parse(o.items) : [];
-          } catch (e) {
-            console.warn(`Failed to parse items for order ${o.id} from SQLite:`, e);
-          }
-          return { ...o, items };
-        });
+            const dbOrders = db.prepare("SELECT * FROM orders").all() as any[];
+            orders = dbOrders.map(o => {
+              let items = [];
+              try {
+                items = o.items ? JSON.parse(o.items) : [];
+              } catch (e) {
+                console.warn(`Failed to parse items for order ${o.id} from SQLite:`, e);
+              }
+              return { ...o, items };
+            });
+          } catch (e2) {}
+        }
       }
       res.json({ orders });
     } catch (error) {
@@ -394,15 +463,24 @@ app.get("/api/health", async (req, res) => {
     res.json({ success: true });
   });
   app.get("/api/categories", async (req, res) => {
-    if (supabase) {
-      const { data, error } = await supabase.from('categories').select('*');
-      if (!error && data) return res.json(data);
+    try {
+      if (supabase) {
+        const { data, error } = await supabase.from('categories').select('*');
+        if (!error && data) return res.json(data);
+      }
+      if (db) {
+        try {
+          const categories = db.prepare("SELECT * FROM categories").all();
+          return res.json(categories);
+        } catch (e) {
+          console.warn("SQLite categories fetch failed:", e);
+        }
+      }
+      res.json([]);
+    } catch (error) {
+      console.error("Error in GET /api/categories:", error);
+      res.status(500).json({ error: "Failed to fetch categories" });
     }
-    if (db) {
-      const categories = db.prepare("SELECT * FROM categories").all();
-      return res.json(categories);
-    }
-    res.json([]);
   });
 
   app.post("/api/categories", async (req, res) => {
@@ -769,15 +847,24 @@ app.post("/api/checkout", async (req, res) => {
 
   // Affiliate API
   app.get("/api/affiliates", async (req, res) => {
-    if (supabase) {
-      const { data, error } = await supabase.from('affiliates').select('*');
-      if (!error && data) return res.json(data);
+    try {
+      if (supabase) {
+        const { data, error } = await supabase.from('affiliates').select('*');
+        if (!error && data) return res.json(data);
+      }
+      if (db) {
+        try {
+          const affiliates = db.prepare("SELECT * FROM affiliates").all();
+          return res.json(affiliates);
+        } catch (e) {
+          console.warn("SQLite affiliates fetch failed:", e);
+        }
+      }
+      res.json([]);
+    } catch (error) {
+      console.error("Error in GET /api/affiliates:", error);
+      res.status(500).json({ error: "Failed to fetch affiliates" });
     }
-    if (db) {
-      const affiliates = db.prepare("SELECT * FROM affiliates").all();
-      return res.json(affiliates);
-    }
-    res.json([]);
   });
 
   app.post("/api/affiliates", async (req, res) => {
@@ -893,15 +980,24 @@ app.post("/api/checkout", async (req, res) => {
   // Favorites API
   app.get("/api/favorites/:userId", async (req, res) => {
     const { userId } = req.params;
-    if (supabase) {
-      const { data, error } = await supabase.from('favorites').select('*').eq('user_id', userId);
-      if (!error && data) return res.json(data);
+    try {
+      if (supabase) {
+        const { data, error } = await supabase.from('favorites').select('*').eq('user_id', userId);
+        if (!error && data) return res.json(data);
+      }
+      if (db) {
+        try {
+          const favorites = db.prepare("SELECT * FROM favorites WHERE user_id = ?").all(userId);
+          return res.json(favorites);
+        } catch (e) {
+          console.warn("SQLite favorites fetch failed:", e);
+        }
+      }
+      res.json([]);
+    } catch (error) {
+      console.error("Error in GET /api/favorites:", error);
+      res.status(500).json({ error: "Failed to fetch favorites" });
     }
-    if (db) {
-      const favorites = db.prepare("SELECT * FROM favorites WHERE user_id = ?").all(userId);
-      return res.json(favorites);
-    }
-    res.json([]);
   });
 
   app.post("/api/favorites", async (req, res) => {
@@ -948,6 +1044,16 @@ app.post("/api/checkout", async (req, res) => {
       res.sendFile(path.join(__dirname, "dist", "index.html"));
     });
   }
+
+  // Global error handler
+  app.use((err: any, req: any, res: any, next: any) => {
+    console.error("Unhandled server error:", err);
+    res.status(500).json({ 
+      error: "Internal Server Error", 
+      message: err.message || "An unexpected error occurred",
+      details: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
+  });
 
   if (process.env.NODE_ENV === "production" && !process.env.VERCEL) {
     app.listen(PORT, "0.0.0.0", () => {
