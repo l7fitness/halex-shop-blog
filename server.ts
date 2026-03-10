@@ -598,24 +598,44 @@ app.get("/api/health", async (req, res) => {
     try {
       await enviarEmail(to, subject, html);
       res.json({ success: true });
-    } catch (error) {
-      res.status(500).json({ error: "Falha ao enviar e-mail" });
+    } catch (error: any) {
+      console.error("Erro no endpoint /api/enviar-email:", error);
+      res.status(500).json({ 
+        error: "Falha ao enviar e-mail", 
+        details: error.message || String(error) 
+      });
     }
   });
 
   app.post("/api/contato", async (req, res) => {
     const { nome, email, mensagem } = req.body;
-    if (!nome || !email || !mensagem) return res.status(400).json({ success: false, error: "Campos obrigatórios" });
+    if (!nome || !email || !mensagem) {
+      return res.status(400).json({ success: false, error: "Campos obrigatórios" });
+    }
     
     try {
       // Email para admin
-      await enviarEmail("contato@mail.l7fitness.com.br", "Novo contato do site", `<p>Nome: ${nome}</p><p>Email: ${email}</p><p>Mensagem: ${mensagem}</p>`);
+      try {
+        await enviarEmail("contato@mail.l7fitness.com.br", "Novo contato do site", `<p>Nome: ${nome}</p><p>Email: ${email}</p><p>Mensagem: ${mensagem}</p>`);
+      } catch (e) {
+        console.warn("Falha ao notificar admin por e-mail:", e);
+      }
+
       // Email para cliente
-      await enviarEmail(email, "Recebemos sua mensagem", `<p>Olá ${nome}, recebemos sua mensagem e entraremos em contato em breve.</p>`);
+      try {
+        await enviarEmail(email, "Recebemos sua mensagem", `<p>Olá ${nome}, recebemos sua mensagem e entraremos em contato em breve.</p>`);
+      } catch (e) {
+        console.warn("Falha ao enviar confirmação para o cliente:", e);
+      }
       
-      res.json({ success: true, message: "Mensagem enviada com sucesso!" });
-    } catch (error) {
-      res.status(500).json({ success: false, error: "Falha ao enviar mensagem" });
+      res.json({ success: true, message: "Mensagem recebida com sucesso!" });
+    } catch (error: any) {
+      console.error("Erro no endpoint /api/contato:", error);
+      res.status(500).json({ 
+        success: false, 
+        error: "Erro interno ao processar contato",
+        details: error.message || String(error)
+      });
     }
   });
 
@@ -914,20 +934,26 @@ app.post("/api/checkout", async (req, res) => {
     const { status } = req.body; // 'approved' or 'rejected'
     if (!supabase) return res.status(500).json({ error: "Supabase not configured" });
     
-    const { error } = await supabase.from('affiliates').update({ status }).eq('id', id);
-    if (error) return res.status(400).json({ error: error.message });
-    
-    // Send email to affiliate
-    const { data: affiliate } = await supabase.from('affiliates').select('*').eq('id', id).single();
-    if (affiliate) {
-      try {
-        await enviarEmail(affiliate.email, `Sua afiliação foi ${status === 'approved' ? 'aprovada' : 'rejeitada'}`, `Olá ${affiliate.name}, sua solicitação de afiliação foi ${status}.`);
-      } catch (e) {
-        console.error("Email error:", e);
+    try {
+      const { error } = await supabase.from('affiliates').update({ status }).eq('id', id);
+      if (error) throw error;
+      
+      // Send email to affiliate
+      const { data: affiliate } = await supabase.from('affiliates').select('*').eq('id', id).single();
+      if (affiliate) {
+        try {
+          await enviarEmail(affiliate.email, `Sua afiliação foi ${status === 'approved' ? 'aprovada' : 'rejeitada'}`, `Olá ${affiliate.name}, sua solicitação de afiliação foi ${status}.`);
+        } catch (e: any) {
+          console.error("Falha ao enviar e-mail de notificação de afiliado:", e.message);
+          // Não travamos a resposta se apenas o e-mail falhar, mas avisamos no log
+        }
       }
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Erro ao aprovar afiliado:", error);
+      res.status(500).json({ error: "Erro ao processar aprovação", details: error.message || String(error) });
     }
-    
-    res.json({ success: true });
   });
 
   app.patch("/api/affiliates/:id", async (req, res) => {
