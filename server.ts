@@ -162,9 +162,11 @@ app.get("/api/health", async (req, res) => {
     try {
       const { count, error } = await supabase.from('products').select('*', { count: 'exact', head: true });
       supabaseProductsCount = count || 0;
-      supabaseError = error;
+      if (error) {
+        supabaseError = error.message;
+      }
     } catch (e: any) {
-      supabaseError = e.message;
+      supabaseError = e.message || String(e);
     }
   }
 
@@ -212,8 +214,8 @@ app.get("/api/health", async (req, res) => {
         ];
         await supabase.from('posts').insert(initialPosts);
       }
-    } catch (e) {
-      console.error("Supabase seeding failed (likely tables not created yet):", e);
+    } catch (e: any) {
+      console.error("Supabase seeding failed. This usually means the tables (products, posts, etc.) haven't been created in the Supabase dashboard yet. Error:", e.message || e);
     }
   })();
 }
@@ -225,8 +227,17 @@ app.get("/api/health", async (req, res) => {
 
       if (supabase) {
         try {
-          const { data, error } = await supabase.from('products').select('*, product_categories(category_id)');
-          if (error) throw error;
+          // Try fetching with categories first
+          let { data, error } = await supabase.from('products').select('*, product_categories(category_id)');
+          
+          // If relationship query fails, try simple query
+          if (error) {
+            console.warn("Supabase relationship query failed, trying simple query:", error.message);
+            const simpleResult = await supabase.from('products').select('*');
+            if (simpleResult.error) throw simpleResult.error;
+            data = simpleResult.data;
+          }
+
           products = (data || []).map(p => {
             let images = [];
             try {
@@ -241,8 +252,8 @@ app.get("/api/health", async (req, res) => {
             };
           });
           usedSupabase = true;
-        } catch (supaError) {
-          console.error("Supabase products fetch failed, falling back to SQLite:", supaError);
+        } catch (supaError: any) {
+          console.error("Supabase products fetch failed completely, falling back to SQLite:", supaError.message || supaError);
         }
       }
 
@@ -281,8 +292,8 @@ app.get("/api/health", async (req, res) => {
           if (error) throw error;
           posts = (data || []).map(p => ({ ...p, readTime: p.read_time || p.readTime }));
           usedSupabase = true;
-        } catch (supaError) {
-          console.error("Supabase posts fetch failed, falling back to SQLite:", supaError);
+        } catch (supaError: any) {
+          console.error("Supabase posts fetch failed, falling back to SQLite:", supaError.message || supaError);
         }
       }
 
@@ -593,8 +604,8 @@ app.get("/api/health", async (req, res) => {
           if (error) throw error;
           orders = data || [];
           usedSupabase = true;
-        } catch (supaError) {
-          console.error("Supabase orders fetch failed for email, falling back to SQLite:", supaError);
+        } catch (supaError: any) {
+          console.error("Supabase orders fetch failed for email, falling back to SQLite:", supaError.message || supaError);
         }
       }
 
