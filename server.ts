@@ -4,7 +4,7 @@ import Database from "better-sqlite3";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createClient } from "@supabase/supabase-js";
-import { enviarEmail } from "./mailer";
+import { enviarEmail } from "./mailer.js";
 import crypto from "crypto";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -117,6 +117,9 @@ try {
   } catch (e) {}
   try {
     db.exec("ALTER TABLE products ADD COLUMN reviews INTEGER");
+  } catch (e) {}
+  try {
+    db.exec("ALTER TABLE orders ADD COLUMN affiliate_id TEXT");
   } catch (e) {}
 
   // Seed initial data if empty
@@ -469,6 +472,7 @@ app.get("/api/health", async (req, res) => {
       if (supabase) {
         const { data, error } = await supabase.from('categories').select('*');
         if (!error && data) return res.json(data);
+        if (error) throw error;
       }
       if (db) {
         try {
@@ -476,12 +480,13 @@ app.get("/api/health", async (req, res) => {
           return res.json(categories);
         } catch (e) {
           console.warn("SQLite categories fetch failed:", e);
+          throw e;
         }
       }
       res.json([]);
     } catch (error) {
       console.error("Error in GET /api/categories:", error);
-      res.status(500).json({ error: "Failed to fetch categories" });
+      res.status(500).json({ error: "Failed to fetch categories", details: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -847,6 +852,7 @@ app.post("/api/checkout", async (req, res) => {
       if (supabase) {
         const { data, error } = await supabase.from('affiliates').select('*');
         if (!error && data) return res.json(data);
+        if (error) throw error;
       }
       if (db) {
         try {
@@ -854,12 +860,13 @@ app.post("/api/checkout", async (req, res) => {
           return res.json(affiliates);
         } catch (e) {
           console.warn("SQLite affiliates fetch failed:", e);
+          throw e;
         }
       }
       res.json([]);
     } catch (error) {
       console.error("Error in GET /api/affiliates:", error);
-      res.status(500).json({ error: "Failed to fetch affiliates" });
+      res.status(500).json({ error: "Failed to fetch affiliates", details: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -980,6 +987,7 @@ app.post("/api/checkout", async (req, res) => {
       if (supabase) {
         const { data, error } = await supabase.from('favorites').select('*').eq('user_id', userId);
         if (!error && data) return res.json(data);
+        if (error) throw error;
       }
       if (db) {
         try {
@@ -987,12 +995,13 @@ app.post("/api/checkout", async (req, res) => {
           return res.json(favorites);
         } catch (e) {
           console.warn("SQLite favorites fetch failed:", e);
+          throw e;
         }
       }
       res.json([]);
     } catch (error) {
       console.error("Error in GET /api/favorites:", error);
-      res.status(500).json({ error: "Failed to fetch favorites" });
+      res.status(500).json({ error: "Failed to fetch favorites", details: error instanceof Error ? error.message : String(error) });
     }
   });
 
