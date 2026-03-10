@@ -70,7 +70,15 @@ export const CategoryManagement = ({ onRefresh }: { onRefresh: () => void }) => 
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => { setNewCategory(c); setEditingId(c.id); setActiveTab('create'); }} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit2 size={18} /></button>
+                  <button onClick={() => { 
+                    setNewCategory({ 
+                      name: c.name, 
+                      description: c.description || '', 
+                      color: c.color || '#f97316' 
+                    }); 
+                    setEditingId(c.id); 
+                    setActiveTab('create'); 
+                  }} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit2 size={18} /></button>
                   <button onClick={() => handleDeleteCategory(c.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={18} /></button>
                 </div>
               </div>

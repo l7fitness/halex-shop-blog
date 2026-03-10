@@ -221,68 +221,121 @@ app.get("/api/health", async (req, res) => {
   app.get("/api/products", async (req, res) => {
     try {
       let products: any[] = [];
+      let usedSupabase = false;
+
       if (supabase) {
-        const { data, error } = await supabase.from('products').select('*, product_categories(category_id)');
-        if (error) throw error;
-        products = (data || []).map(p => ({
-          ...p,
-          images: typeof p.images === 'string' ? JSON.parse(p.images) : (p.images || []),
-          categories: (p.product_categories || []).map((pc: any) => pc.category_id)
-        }));
-      } else if (db) {
+        try {
+          const { data, error } = await supabase.from('products').select('*, product_categories(category_id)');
+          if (error) throw error;
+          products = (data || []).map(p => {
+            let images = [];
+            try {
+              images = typeof p.images === 'string' ? JSON.parse(p.images) : (p.images || []);
+            } catch (e) {
+              console.warn(`Failed to parse images for product ${p.id}:`, e);
+            }
+            return {
+              ...p,
+              images,
+              categories: (p.product_categories || []).map((pc: any) => pc.category_id)
+            };
+          });
+          usedSupabase = true;
+        } catch (supaError) {
+          console.error("Supabase products fetch failed, falling back to SQLite:", supaError);
+        }
+      }
+
+      if (!usedSupabase && db) {
         const dbProducts = db.prepare("SELECT * FROM products").all() as any[];
         const productCategories = db.prepare("SELECT * FROM product_categories").all() as any[];
-        products = dbProducts.map(p => ({
-          ...p,
-          images: p.images ? JSON.parse(p.images) : [],
-          categories: productCategories.filter(pc => pc.product_id === p.id).map(pc => pc.category_id)
-        }));
+        products = dbProducts.map(p => {
+          let images = [];
+          try {
+            images = p.images ? JSON.parse(p.images) : [];
+          } catch (e) {
+            console.warn(`Failed to parse images for product ${p.id} from SQLite:`, e);
+          }
+          return {
+            ...p,
+            images,
+            categories: productCategories.filter(pc => pc.product_id === p.id).map(pc => pc.category_id)
+          };
+        });
       }
       res.json({ products });
     } catch (error) {
       console.error("Error in GET /api/products:", error);
-      res.status(500).json({ error: "Failed to fetch products" });
+      res.status(500).json({ error: "Failed to fetch products", details: error instanceof Error ? error.message : String(error) });
     }
   });
 
   app.get("/api/posts", async (req, res) => {
     try {
       let posts: any[] = [];
+      let usedSupabase = false;
+
       if (supabase) {
-        const { data, error } = await supabase.from('posts').select('*');
-        if (error) throw error;
-        posts = (data || []).map(p => ({ ...p, readTime: p.read_time }));
-      } else if (db) {
+        try {
+          const { data, error } = await supabase.from('posts').select('*');
+          if (error) throw error;
+          posts = (data || []).map(p => ({ ...p, readTime: p.read_time || p.readTime }));
+          usedSupabase = true;
+        } catch (supaError) {
+          console.error("Supabase posts fetch failed, falling back to SQLite:", supaError);
+        }
+      }
+
+      if (!usedSupabase && db) {
         posts = db.prepare("SELECT * FROM posts").all();
       }
       res.json({ posts });
     } catch (error) {
       console.error("Error in GET /api/posts:", error);
-      res.status(500).json({ error: "Failed to fetch posts" });
+      res.status(500).json({ error: "Failed to fetch posts", details: error instanceof Error ? error.message : String(error) });
     }
   });
 
   app.get("/api/orders", async (req, res) => {
     try {
       let orders: any[] = [];
+      let usedSupabase = false;
+
       if (supabase) {
-        const { data, error } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
-        if (error) throw error;
-        orders = (data || []).map(o => ({
-          ...o,
-          items: typeof o.items === 'string' ? JSON.parse(o.items) : o.items
-        }));
-      } else if (db) {
+        try {
+          const { data, error } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
+          if (error) throw error;
+          orders = (data || []).map(o => {
+            let items = [];
+            try {
+              items = typeof o.items === 'string' ? JSON.parse(o.items) : (o.items || []);
+            } catch (e) {
+              console.warn(`Failed to parse items for order ${o.id}:`, e);
+            }
+            return { ...o, items };
+          });
+          usedSupabase = true;
+        } catch (supaError) {
+          console.error("Supabase orders fetch failed, falling back to SQLite:", supaError);
+        }
+      }
+
+      if (!usedSupabase && db) {
         const dbOrders = db.prepare("SELECT * FROM orders ORDER BY created_at DESC").all() as any[];
-        orders = dbOrders.map(o => ({
-          ...o,
-          items: JSON.parse(o.items)
-        }));
+        orders = dbOrders.map(o => {
+          let items = [];
+          try {
+            items = o.items ? JSON.parse(o.items) : [];
+          } catch (e) {
+            console.warn(`Failed to parse items for order ${o.id} from SQLite:`, e);
+          }
+          return { ...o, items };
+        });
       }
       res.json({ orders });
     } catch (error) {
       console.error("Error in GET /api/orders:", error);
-      res.status(500).json({ error: "Failed to fetch orders" });
+      res.status(500).json({ error: "Failed to fetch orders", details: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -329,6 +382,7 @@ app.get("/api/health", async (req, res) => {
     
     res.json({ success: true });
   });
+  app.get("/api/categories", async (req, res) => {
     if (supabase) {
       const { data, error } = await supabase.from('categories').select('*');
       if (!error && data) return res.json(data);
@@ -528,33 +582,57 @@ app.get("/api/health", async (req, res) => {
 
   // InfinitePay Checkout
   app.get("/api/orders/:email", async (req, res) => {
-  const { email } = req.params;
-  try {
-    let orders = [];
-    if (supabase) {
-      const { data, error } = await supabase.from('orders').select('*').eq('customer_email', email).order('created_at', { ascending: false });
-      if (!error) orders = data;
-    } else if (db) {
-      orders = db.prepare("SELECT * FROM orders WHERE customer_email = ? ORDER BY created_at DESC").all(email);
+    const { email } = req.params;
+    try {
+      let orders: any[] = [];
+      let usedSupabase = false;
+
+      if (supabase) {
+        try {
+          const { data, error } = await supabase.from('orders').select('*').eq('customer_email', email).order('created_at', { ascending: false });
+          if (error) throw error;
+          orders = data || [];
+          usedSupabase = true;
+        } catch (supaError) {
+          console.error("Supabase orders fetch failed for email, falling back to SQLite:", supaError);
+        }
+      }
+
+      if (!usedSupabase && db) {
+        orders = db.prepare("SELECT * FROM orders WHERE customer_email = ? ORDER BY created_at DESC").all(email);
+      }
+      res.json(orders.map(o => {
+        let items = [];
+        try {
+          items = typeof o.items === 'string' ? JSON.parse(o.items) : (o.items || []);
+        } catch (e) {
+          console.warn(`Failed to parse items for order ${o.id}:`, e);
+        }
+        return { ...o, items };
+      }));
+    } catch (error) {
+      console.error("Error in GET /api/orders/:email:", error);
+      res.status(500).json({ error: "Failed to fetch orders", details: error instanceof Error ? error.message : String(error) });
     }
-    res.json(orders.map(o => ({ ...o, items: typeof o.items === 'string' ? JSON.parse(o.items) : o.items })));
-  } catch (error) {
-    res.status(500).json({ error: "Failed to fetch orders" });
-  }
-});
+  });
 
 app.post("/api/checkout", async (req, res) => {
+  try {
     const { items, total, customer_email, affiliate_id } = req.body;
     
     // Look up affiliate by ref_code
     let affiliateId = null;
     if (affiliate_id) {
-      if (supabase) {
-        const { data } = await supabase.from('affiliates').select('id').eq('ref_code', affiliate_id).single();
-        if (data) affiliateId = data.id;
-      } else if (db) {
-        const affiliate = db.prepare("SELECT id FROM affiliates WHERE ref_code = ?").get(affiliate_id);
-        if (affiliate) affiliateId = affiliate.id;
+      try {
+        if (supabase) {
+          const { data } = await supabase.from('affiliates').select('id').eq('ref_code', affiliate_id).single();
+          if (data) affiliateId = data.id;
+        } else if (db) {
+          const affiliate = db.prepare("SELECT id FROM affiliates WHERE ref_code = ?").get(affiliate_id);
+          if (affiliate) affiliateId = affiliate.id;
+        }
+      } catch (affError) {
+        console.warn("Error looking up affiliate, continuing without it:", affError);
       }
     }
     
@@ -576,13 +654,21 @@ app.post("/api/checkout", async (req, res) => {
     };
 
     if (db) {
-      db.prepare("INSERT INTO orders (id, order_nsu, customer_email, items, total, status, affiliate_id) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
-        orderData.id, orderData.order_nsu, orderData.customer_email, orderData.items, orderData.total, orderData.status, orderData.affiliate_id
-      );
+      try {
+        db.prepare("INSERT INTO orders (id, order_nsu, customer_email, items, total, status, affiliate_id) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
+          orderData.id, orderData.order_nsu, orderData.customer_email, orderData.items, orderData.total, orderData.status, orderData.affiliate_id
+        );
+      } catch (dbError) {
+        console.error("SQLite order insert failed:", dbError);
+      }
     }
 
     if (supabase) {
-      await supabase.from('orders').insert([orderData]);
+      try {
+        await supabase.from('orders').insert([orderData]);
+      } catch (supaError) {
+        console.error("Supabase order insert failed:", supaError);
+      }
     }
 
     try {
@@ -641,7 +727,11 @@ app.post("/api/checkout", async (req, res) => {
         debug_error: errorDetail
       });
     }
-  });
+  } catch (globalError) {
+    console.error("Global error in /api/checkout:", globalError);
+    res.status(500).json({ error: "Internal Server Error in checkout", details: globalError instanceof Error ? globalError.message : String(globalError) });
+  }
+});
 
   // InfinitePay Webhook Handler
   app.post("/api/webhook-infinitepay", async (req, res) => {
