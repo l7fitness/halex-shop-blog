@@ -269,16 +269,10 @@ app.get("/api/health", async (req, res) => {
 
       if (supabase) {
         try {
-          // Try fetching with categories first
-          let { data, error } = await supabase.from('products').select('*, product_categories(category_id)');
+          // Simple fetch only from products table
+          const { data, error } = await supabase.from('products').select('*');
           
-          // If relationship query fails, try simple query
-          if (error) {
-            console.warn("Supabase relationship query failed, trying simple query:", error.message);
-            const simpleResult = await supabase.from('products').select('*');
-            if (simpleResult.error) throw simpleResult.error;
-            data = simpleResult.data;
-          }
+          if (error) throw error;
 
           products = (data || []).map(p => {
             let images = [];
@@ -290,24 +284,19 @@ app.get("/api/health", async (req, res) => {
             return {
               ...p,
               images,
-              categories: (p.product_categories || []).map((pc: any) => pc.category_id)
+              // Map single category to categories array for frontend compatibility
+              categories: p.category ? [p.category] : []
             };
           });
           usedSupabase = true;
         } catch (supaError: any) {
-          console.error("Supabase products fetch failed completely, falling back to SQLite:", supaError.message || supaError);
+          console.error("Supabase products fetch failed, falling back to SQLite:", supaError.message || supaError);
         }
       }
 
       if (!usedSupabase && db) {
         try {
           const dbProducts = db.prepare("SELECT * FROM products").all() as any[];
-          let productCategories: any[] = [];
-          try {
-            productCategories = db.prepare("SELECT * FROM product_categories").all() as any[];
-          } catch (e) {
-            console.warn("product_categories table might be missing in SQLite");
-          }
           
           products = dbProducts.map(p => {
             let images = [];
@@ -319,7 +308,7 @@ app.get("/api/health", async (req, res) => {
             return {
               ...p,
               images,
-              categories: productCategories.filter(pc => pc.product_id === p.id).map(pc => pc.category_id)
+              categories: p.category ? [p.category] : []
             };
           });
         } catch (sqliteError) {
@@ -426,29 +415,36 @@ app.get("/api/health", async (req, res) => {
 
   // Admin API - Products
   app.post("/api/products", async (req, res) => {
-    const { id, name, price, description, categories, image, images, stock, rating, reviews } = req.body;
+    const { id, name, price, description, category, categories, image, images, stock, rating, reviews } = req.body;
     const productId = id || crypto.randomUUID();
-    const productData = { id: productId, name, price, description, image, images: JSON.stringify(images || []), stock: stock || 0, rating: rating || 5, reviews: reviews || 0 };
+    // Use the first category from the array if 'category' is not directly provided
+    const mainCategory = category || (categories && categories.length > 0 ? categories[0] : null);
+    
+    const productData = { 
+      id: productId, 
+      name, 
+      price, 
+      description, 
+      category: mainCategory,
+      image, 
+      images: JSON.stringify(images || []), 
+      stock: stock || 0, 
+      rating: rating || 5, 
+      reviews: reviews || 0 
+    };
     
     if (db) {
-      db.prepare("INSERT INTO products (id, name, price, description, image, images, stock, rating, reviews) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
-        .run(productId, name, price, description, productData.image, productData.images, productData.stock, productData.rating, productData.reviews);
-      
-      if (categories) {
-        const insertCategory = db.prepare("INSERT INTO product_categories (product_id, category_id) VALUES (?, ?)");
-        for (const catId of categories) {
-          insertCategory.run(productId, catId);
-        }
+      try {
+        db.prepare("INSERT INTO products (id, name, price, description, category, image, images, stock, rating, reviews) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+          .run(productId, name, price, description, productData.category, productData.image, productData.images, productData.stock, productData.rating, productData.reviews);
+      } catch (e) {
+        console.error("SQLite product insert error:", e);
       }
     }
     
     if (supabase) {
       const { error } = await supabase.from('products').upsert([productData]);
       if (error) console.error("Supabase product upsert error:", error);
-      
-      if (categories) {
-        await supabase.from('product_categories').insert(categories.map((catId: string) => ({ product_id: productId, category_id: catId })));
-      }
     }
     
     res.json({ success: true, id: productId });
@@ -456,12 +452,13 @@ app.get("/api/health", async (req, res) => {
 
   app.delete("/api/products/:id", async (req, res) => {
     if (db) {
-      db.prepare("DELETE FROM products WHERE id = ?").run(req.params.id);
-      db.prepare("DELETE FROM product_categories WHERE product_id = ?").run(req.params.id);
+      try {
+        db.prepare("DELETE FROM products WHERE id = ?").run(req.params.id);
+        db.prepare("DELETE FROM product_categories WHERE product_id = ?").run(req.params.id);
+      } catch (e) {}
     }
     
     if (supabase) {
-      await supabase.from('product_categories').delete().eq('product_id', req.params.id);
       await supabase.from('products').delete().eq('id', req.params.id);
     }
     
@@ -519,11 +516,14 @@ app.get("/api/health", async (req, res) => {
   });
 
   app.put("/api/products/:id", async (req, res) => {
-    const { name, price, description, categories, image, images, stock, rating, reviews } = req.body;
+    const { name, price, description, category, categories, image, images, stock, rating, reviews } = req.body;
+    const mainCategory = category || (categories && categories.length > 0 ? categories[0] : null);
+
     const productData = { 
       name, 
       price, 
       description, 
+      category: mainCategory,
       image, 
       images: typeof images === 'string' ? images : JSON.stringify(images || []), 
       stock: stock || 0, 
@@ -532,26 +532,17 @@ app.get("/api/health", async (req, res) => {
     };
     
     if (db) {
-      db.prepare("UPDATE products SET name = ?, price = ?, description = ?, image = ?, images = ?, stock = ?, rating = ?, reviews = ? WHERE id = ?")
-        .run(productData.name, productData.price, productData.description, productData.image, productData.images, productData.stock, productData.rating, productData.reviews, req.params.id);
-      
-      db.prepare("DELETE FROM product_categories WHERE product_id = ?").run(req.params.id);
-      if (categories) {
-        const insertCategory = db.prepare("INSERT INTO product_categories (product_id, category_id) VALUES (?, ?)");
-        for (const catId of categories) {
-          insertCategory.run(req.params.id, catId);
-        }
+      try {
+        db.prepare("UPDATE products SET name = ?, price = ?, description = ?, category = ?, image = ?, images = ?, stock = ?, rating = ?, reviews = ? WHERE id = ?")
+          .run(productData.name, productData.price, productData.description, productData.category, productData.image, productData.images, productData.stock, productData.rating, productData.reviews, req.params.id);
+      } catch (e) {
+        console.error("SQLite product update error:", e);
       }
     }
     
     if (supabase) {
       const { error } = await supabase.from('products').update(productData).eq('id', req.params.id);
       if (error) console.error("Supabase product update error:", error);
-      
-      await supabase.from('product_categories').delete().eq('product_id', req.params.id);
-      if (categories) {
-        await supabase.from('product_categories').insert(categories.map((catId: string) => ({ product_id: req.params.id, category_id: catId })));
-      }
     }
     
     res.json({ success: true });
